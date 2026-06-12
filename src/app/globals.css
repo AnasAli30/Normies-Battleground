@@ -2066,4 +2066,512 @@ body::before {
 }
 
 
+/* ═══════════════════════════════════════════════════════════════════
+   MODE SELECT SCREEN
+   ═══════════════════════════════════════════════════════════════════ */
+
+.mode-select-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px);
+  padding: var(--space-xl);
+}
+
+.mode-select-container {
+  text-align: center;
+  max-width: 800px;
+  width: 100%;
+}
+
+.mode-select-title {
+  font-family: var(--font-pixel);
+  font-size: 18px;
+  color: var(--accent-secondary);
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+  margin-bottom: var(--space-sm);
+  letter-spacing: 1px;
+}
+
+.mode-select-subtitle {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2xl);
+}
+
+.mode-cards {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-lg);
+}
+
+.mode-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2xl) var(--space-xl);
+  width: 300px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.pve-card::before {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.08), rgba(168, 85, 247, 0.05));
+}
+
+.pvp-card::before {
+  background: linear-gradient(135deg, rgba(255, 45, 107, 0.08), rgba(251, 191, 36, 0.05));
+}
+
+.mode-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--accent-secondary);
+  box-shadow: 0 12px 40px rgba(0, 240, 255, 0.15);
+}
+
+.mode-card:hover::before {
+  opacity: 1;
+}
+
+.pvp-card:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 12px 40px rgba(255, 45, 107, 0.15);
+}
+
+.mode-card-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-lg);
+  color: var(--accent-secondary);
+  filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.3));
+}
+
+.pvp-card .mode-card-icon {
+  color: var(--accent-primary);
+  filter: drop-shadow(0 0 10px rgba(255, 45, 107, 0.3));
+}
+
+.mode-card-title {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.mode-card-desc {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.mode-card-features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-lg);
+}
+
+.mode-card-features span {
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+}
+
+.mode-card-badge {
+  display: inline-block;
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--accent-secondary), var(--accent-tertiary));
+  color: #fff;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.mode-card-badge.online {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-gold));
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 45, 107, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(255, 45, 107, 0.6); }
+}
+
+.mode-vs-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-pixel);
+  font-size: 20px;
+  color: var(--accent-gold);
+  text-shadow: 0 0 15px rgba(251, 191, 36, 0.4);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  border: 2px solid var(--accent-gold);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PVP LOBBY SCREEN
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pvp-lobby-screen {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: calc(100vh - 60px);
+  padding: var(--space-xl);
+}
+
+.pvp-lobby-container {
+  max-width: 900px;
+  width: 100%;
+}
+
+.pvp-lobby-title {
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  color: var(--accent-primary);
+  text-shadow: 0 0 20px rgba(255, 45, 107, 0.4);
+  text-align: center;
+  margin-bottom: var(--space-xl);
+}
+
+.pvp-lobby-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: var(--space-xl);
+}
+
+.pvp-lobby-fighter-select {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  backdrop-filter: blur(10px);
+}
+
+.pvp-fighter-preview {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+}
+
+.pvp-fighter-preview .fighter-image-container {
+  width: 100px;
+  height: 100px;
+  flex-shrink: 0;
+}
+
+.pvp-fighter-preview .fighter-image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.pvp-fighter-info {
+  flex: 1;
+}
+
+.pvp-fighter-info .fighter-name {
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  color: var(--accent-secondary);
+  margin-bottom: 4px;
+}
+
+.pvp-fighter-info .fighter-class {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.pvp-stats-mini {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  color: var(--text-primary);
+}
+
+.pvp-stats-mini span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.pvp-find-match-btn {
+  margin-top: var(--space-lg);
+  width: 100%;
+  padding: 16px !important;
+  font-size: 14px !important;
+  animation: findMatchGlow 2s ease-in-out infinite;
+}
+
+@keyframes findMatchGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 45, 107, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(255, 45, 107, 0.6), 0 0 60px rgba(255, 45, 107, 0.2); }
+}
+
+.pvp-searching {
+  text-align: center;
+  padding: var(--space-xl) 0;
+}
+
+.pvp-searching-spinner {
+  margin: 0 auto var(--space-md);
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pvp-searching-spinner .loading-core {
+  width: 40px;
+  height: 40px;
+}
+
+.pvp-searching-text {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: var(--accent-primary);
+  margin-bottom: var(--space-sm);
+  animation: searchPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes searchPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.pvp-queue-count {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.pvp-lobby-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.pvp-info-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  backdrop-filter: blur(10px);
+}
+
+.pvp-info-card h3 {
+  font-family: var(--font-pixel);
+  font-size: 9px;
+  color: var(--accent-gold);
+  margin-bottom: var(--space-md);
+}
+
+.pvp-info-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pvp-info-list li {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--accent-gold);
+}
+
+/* Responsive for mode-select and PVP lobby */
+@media (max-width: 700px) {
+  .mode-cards {
+    flex-direction: column;
+  }
+
+  .mode-card {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .mode-vs-divider {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .pvp-lobby-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BATTLE ARENA RESPONSIVENESS
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) {
+  .battle-layout {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: calc(100vh - 70px);
+    overflow-x: hidden;
+    gap: var(--space-sm);
+  }
+
+  .battle-sidebar {
+    order: 3;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-md);
+  }
+
+  .battle-sidebar.opponent-sidebar {
+    order: 1;
+  }
+
+  .arena-central {
+    order: 2;
+    min-height: 40vh;
+    flex: 1 0 auto;
+  }
+
+  .sidebar-portrait {
+    width: 45px;
+    height: 45px;
+    margin: 0;
+    border-radius: 50%;
+    border: 2px solid var(--glass-border);
+  }
+
+  .sidebar-name {
+    display: none; /* Hide name on mobile to save space, or we can make it absolute */
+  }
+
+  .sidebar-hp-container {
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .sidebar-hp-label {
+    font-size: 0.6rem;
+  }
+
+  .sidebar-pixel-count, .sidebar-dodge-charges {
+    flex: none;
+    width: auto;
+    background: transparent;
+  }
+
+  .sidebar-terminal {
+    display: none; /* Hide combat logs on mobile to save space */
+  }
+
+  .sidebar-stats-mini {
+    width: 100%;
+    display: flex;
+    justify-content: space-around;
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
+  }
+  
+  .mini-stat {
+    font-size: 0.55rem;
+  }
+
+  .battle-controls {
+    padding-top: var(--space-sm);
+  }
+
+  .ability-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-sm);
+  }
+
+  .ability-btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 120px;
+    padding: 10px;
+    font-size: 0.65rem;
+  }
+
+  .ability-icon {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .arena-central {
+    min-height: 35vh;
+  }
+
+  .ability-btn {
+    flex: 1 1 100%;
+  }
+
+  .sidebar-stats-mini {
+    display: none; /* Hide extra stats on very small screens to keep it clean */
+  }
+
+  .battle-sidebar {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+
+  .sidebar-portrait {
+    width: 35px;
+    height: 35px;
+  }
+
+  .sidebar-hp-label {
+    font-size: 0.5rem;
+  }
+}
 

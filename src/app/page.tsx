@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Fighter, CombatLogEntry, LeaderboardEntry, Ability } from "../lib/types";
 import { 
   loadFighterData, 
@@ -17,10 +17,33 @@ import {
   getApiHealth
 } from "../lib/api";
 import { createFighter, getStatPercent } from "../lib/fighter";
+import { removePixelCluster, restorePixels, getActivePixelCoords, removeRandomPixels, countActivePixels } from "../lib/pixels";
 import { CombatEngine } from "../lib/combat";
 import { ArenaRenderer } from "../lib/arena";
 import { audio } from "../lib/audio";
 import { recordResult, getLeaderboard } from "../lib/leaderboard";
+import {
+  connectToServer,
+  disconnectFromServer,
+  joinQueue,
+  leaveQueue,
+  sendAbility,
+  sendTimingResult,
+  sendDodgeResult,
+  onMatchFound,
+  onStateUpdate,
+  onTimingPrompt,
+  onDodgePrompt,
+  onBattleEnd as onPvpBattleEnd,
+  onOpponentDisconnect,
+  onError as onPvpError,
+  onQueueJoined,
+  onQueueStatus,
+  removeAllPvpListeners,
+  isConnected,
+  fetchPvpLeaderboard,
+} from "../lib/socket";
+import type { PvpFighterData, PvpStateUpdate, PvpMatchFoundPayload, PvpBattleEndPayload } from "../lib/shared-types";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -153,7 +176,8 @@ function isOpponentLog(message: string, playerName: string, opponentName: string
 }
 
 export default function Home() {
-  const [currentScreen, setCurrentScreen] = useState<"loading" | "select" | "battle" | "results" | "leaderboard">("loading");
+  const [currentScreen, setCurrentScreen] = useState<"loading" | "mode-select" | "select" | "pvp-lobby" | "battle" | "results" | "leaderboard">("loading");
+  const [gameMode, setGameMode] = useState<"pve" | "pvp">("pve");
   const [isMuted, setIsMuted] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
 
@@ -226,6 +250,18 @@ export default function Home() {
   const [dodgeActiveState, setDodgeActiveState] = useState(false);
   const [dodgeKeyPrompt, setDodgeKeyPrompt] = useState("");
 
+  // PVP-specific states
+  const [pvpSearching, setPvpSearching] = useState(false);
+  const [pvpQueueCount, setPvpQueueCount] = useState(0);
+  const [pvpRoomId, setPvpRoomId] = useState<string | null>(null);
+  const [pvpSide, setPvpSide] = useState<"player1" | "player2">("player1");
+  const pvpSideRef = useRef<"player1" | "player2">("player1");
+  const [pvpOpponentDisconnected, setPvpOpponentDisconnected] = useState(false);
+  const [pvpLeaderboard, setPvpLeaderboard] = useState<any[]>([]);
+
+  const playerOriginalPixelsRef = useRef<string | null>(null);
+  const opponentOriginalPixelsRef = useRef<string | null>(null);
+
   // Refs for animation loops & canvas
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const arenaRef = useRef<ArenaRenderer | null>(null);
@@ -284,7 +320,7 @@ export default function Home() {
         if (progress >= 100) {
           clearInterval(interval);
           setTimeout(() => {
-            setCurrentScreen("select");
+            setCurrentScreen("mode-select");
           }, 400);
         }
       }, 80);
@@ -411,6 +447,346 @@ export default function Home() {
     await loadFighter(tokenId.toString(), "opponent", false);
   };
 
+  // ── PVP Mode Handlers ─────────────────────────────────────────────
+  const startPvpSearch = () => {
+    if (!playerFighter) return;
+    const socket = connectToServer();
+
+    removeAllPvpListeners();
+
+    // Convert Fighter to PvpFighterData
+    const pvpFighter: PvpFighterData = {
+      id: playerFighter.id,
+      name: playerFighter.name,
+      type: playerFighter.type,
+      class: playerFighter.class,
+      gender: playerFighter.gender,
+      age: playerFighter.age,
+      traits: playerFighter.traits,
+      level: playerFighter.level,
+      actionPoints: playerFighter.actionPoints,
+      customized: playerFighter.customized,
+      pixelCount: playerFighter.pixelCount,
+      stats: { ...playerFighter.stats },
+      imageUrl: playerFighter.imageUrl,
+      pngUrl: playerFighter.pngUrl,
+      abilityType: playerFighter.abilityType,
+      passive: playerFighter.passive,
+    };
+
+    setPvpSearching(true);
+    setPvpOpponentDisconnected(false);
+
+    onQueueJoined(() => {
+      console.log('Joined PVP queue');
+    });
+
+    onQueueStatus((data) => {
+      setPvpQueueCount(data.playersInQueue);
+    });
+
+    onMatchFound((data: PvpMatchFoundPayload) => {
+      console.log('Match found!', data);
+      setPvpSearching(false);
+      setPvpRoomId(data.roomId);
+      setPvpSide(data.yourSide);
+      pvpSideRef.current = data.yourSide;
+
+      // Set opponent fighter from server data
+      const oppData = data.opponent;
+      const oppFighter: Fighter = {
+        ...oppData,
+        agentInfo: null,
+        statusEffects: [],
+        isAlive: true,
+      };
+      setOpponentFighter(oppFighter);
+
+      // Initialize battle state from server
+      const state = data.initialState;
+      const myState = data.yourSide === 'player1' ? state.player1 : state.player2;
+      const theirState = data.yourSide === 'player1' ? state.player2 : state.player1;
+
+      setPlayerHp(myState.hp);
+      setPlayerMaxHp(myState.maxHp);
+      setOpponentHp(theirState.hp);
+      setOpponentMaxHp(theirState.maxHp);
+      setPlayerDodgeCharges(myState.dodgeCharges);
+      setCombo(myState.combo);
+      setPlayerBuffs(myState.buffs);
+      setOpponentBuffs(theirState.buffs);
+
+      const isMyTurn = (data.yourSide === 'player1' && state.isPlayer1Turn) ||
+                       (data.yourSide === 'player2' && !state.isPlayer1Turn);
+      setIsPlayerTurn(isMyTurn);
+      setTurnIndicator(isMyTurn ? "YOUR TURN" : "OPPONENT'S TURN");
+
+      // Map abilities
+      setAbilities(myState.abilities.map(a => ({
+        ...a,
+        currentCooldown: a.currentCooldown,
+        calculate: () => ({ damage: 0 }),
+      })) as unknown as Ability[]);
+
+      audio.playSelect();
+      setCurrentScreen("battle");
+      setBattleLogs([]);
+    });
+
+    // PVP state updates during battle
+    onStateUpdate((data) => {
+      const side = pvpSideRef.current;
+      const myState = side === 'player1' ? data.player1 : data.player2;
+      const theirState = side === 'player1' ? data.player2 : data.player1;
+
+      setPlayerHp(myState.hp);
+      setPlayerMaxHp(myState.maxHp);
+      setOpponentHp(theirState.hp);
+      setOpponentMaxHp(theirState.maxHp);
+      
+      setPlayerPixelsCount(prev => prev === 0 ? myState.maxHp : prev);
+      setOpponentPixelsCount(prev => prev === 0 ? theirState.maxHp : prev);
+
+      setPlayerDodgeCharges(myState.dodgeCharges);
+      setCombo(myState.combo);
+      setPlayerBuffs(myState.buffs as any[]);
+      setOpponentBuffs(theirState.buffs as any[]);
+
+      const isMyTurn = (side === 'player1' && data.isPlayer1Turn) ||
+                       (side === 'player2' && !data.isPlayer1Turn);
+      setIsPlayerTurn(isMyTurn);
+      setTurnIndicator(isMyTurn ? "YOUR TURN" : "OPPONENT'S TURN");
+
+      // Map abilities
+      setAbilities(myState.abilities.map(a => ({
+        ...a,
+        currentCooldown: a.currentCooldown,
+        calculate: () => ({ damage: 0 }),
+      })) as unknown as Ability[]);
+
+      // Add new logs
+      if (data.newLogs && data.newLogs.length > 0) {
+        setBattleLogs(prev => [...prev, ...data.newLogs.map(l => ({ ...l }))]);
+        setTimeout(() => {
+          const playerEl = document.getElementById("player-log-console");
+          const opponentEl = document.getElementById("opponent-log-console");
+          if (playerEl) playerEl.scrollTop = playerEl.scrollHeight;
+          if (opponentEl) opponentEl.scrollTop = opponentEl.scrollHeight;
+        }, 30);
+      }
+
+      // Handle visual effects for last action
+      if (data.lastAction && arenaRef.current) {
+        const side = pvpSideRef.current;
+        const isMyAttack = (data.lastAction.attackerSide === 'player1' && side === 'player1') ||
+                           (data.lastAction.attackerSide === 'player2' && side === 'player2');
+        const visualSide = isMyAttack ? 'player' : 'opponent';
+        const targetSide = isMyAttack ? 'opponent' : 'player';
+
+        if (data.lastAction.damage > 0 && !data.lastAction.dodged) {
+          const targetPixels = targetSide === 'player' ? arenaRef.current.playerPixels : arenaRef.current.opponentPixels;
+          let impactPoint: any = null;
+          
+          if (targetPixels) {
+            const activeCoords = getActivePixelCoords(targetPixels);
+            if (activeCoords.length > 0) {
+              const seed = data.lastAction.impactSeed ?? Math.random();
+              impactPoint = activeCoords[Math.floor(seed * activeCoords.length)];
+            }
+          }
+
+          let projType: 'laser' | 'orb' | 'drain' | 'wave' = 'laser';
+          if (data.lastAction.abilityType === 'heavy' || data.lastAction.abilityType === 'ultimate') projType = 'orb';
+          if (data.lastAction.abilityType === 'drain') projType = 'drain';
+
+          arenaRef.current.fireAttack(visualSide, projType, impactPoint, () => {
+            let removedCoords: any[] = [];
+            if (targetPixels && impactPoint) {
+              const destruction = removePixelCluster(targetPixels, impactPoint.x, impactPoint.y, data.lastAction!.damage);
+              arenaRef.current!.updatePixels(targetSide, destruction.newPixels);
+              removedCoords = destruction.removed;
+            }
+
+            arenaRef.current!.damageEffect(targetSide, data.lastAction!.damage, data.lastAction!.isCrit, removedCoords);
+            audio.playPixelCrunch();
+            if (data.lastAction!.isCrit) audio.playCrit();
+            else audio.playHit();
+            
+            reconcilePixels();
+          });
+        }
+        if (data.lastAction.dodged) {
+          arenaRef.current.dodgeEffect(targetSide);
+          audio.playDodge();
+        }
+        if (data.lastAction.heal) {
+          const targetPixels = visualSide === 'player' ? arenaRef.current.playerPixels : arenaRef.current.opponentPixels;
+          const originalPixels = visualSide === 'player' ? playerOriginalPixelsRef.current : opponentOriginalPixelsRef.current;
+          
+          if (targetPixels && originalPixels) {
+            const restoration = restorePixels(targetPixels, originalPixels, data.lastAction.heal);
+            arenaRef.current.updatePixels(visualSide, restoration.newPixels);
+          }
+
+          arenaRef.current.healEffect(visualSide, data.lastAction.heal);
+          audio.playHeal();
+        }
+      }
+
+      // Universal reconciliation step: Ensures canvas perfectly matches server HP after animations complete
+      function reconcilePixels() {
+        if (!arenaRef.current) return;
+        const playerPixels = arenaRef.current.playerPixels;
+        const opponentPixels = arenaRef.current.opponentPixels;
+        
+        if (playerPixels) {
+          const currentP = countActivePixels(playerPixels);
+          if (currentP > myState.hp) {
+            const dest = removeRandomPixels(playerPixels, currentP - myState.hp);
+            arenaRef.current.updatePixels('player', dest.newPixels);
+            arenaRef.current.damageEffect('player', currentP - myState.hp, false, dest.removed);
+          } else if (currentP < myState.hp && playerOriginalPixelsRef.current) {
+            const dest = restorePixels(playerPixels, playerOriginalPixelsRef.current, myState.hp - currentP);
+            arenaRef.current.updatePixels('player', dest.newPixels);
+          }
+          setPlayerPixelsCount(myState.hp);
+        }
+        
+        if (opponentPixels) {
+          const currentO = countActivePixels(opponentPixels);
+          if (currentO > theirState.hp) {
+            const dest = removeRandomPixels(opponentPixels, currentO - theirState.hp);
+            arenaRef.current.updatePixels('opponent', dest.newPixels);
+            arenaRef.current.damageEffect('opponent', currentO - theirState.hp, false, dest.removed);
+          } else if (currentO < theirState.hp && opponentOriginalPixelsRef.current) {
+            const dest = restorePixels(opponentPixels, opponentOriginalPixelsRef.current, theirState.hp - currentO);
+            arenaRef.current.updatePixels('opponent', dest.newPixels);
+          }
+          setOpponentPixelsCount(theirState.hp);
+        }
+      };
+
+      let willReconcileInCallback = false;
+      if (data.lastAction && data.lastAction.damage > 0 && !data.lastAction.dodged) {
+        willReconcileInCallback = true;
+      }
+
+      if (!willReconcileInCallback) {
+        setTimeout(reconcilePixels, 800); // Wait for dodges/heals
+      }
+    });
+
+    onTimingPrompt(() => {
+      setTimingActiveState(true);
+      // Start the timing bar sweep (same as PVE)
+      timingActive.current = true;
+      timingPosition.current = 0;
+      timingDirection.current = 1;
+      timingSpeed.current = 2.5;
+
+      const animate = () => {
+        if (!timingActive.current) return;
+        timingPosition.current += timingSpeed.current * timingDirection.current;
+        if (timingPosition.current >= 100) {
+          timingPosition.current = 100;
+          timingDirection.current = -1;
+        } else if (timingPosition.current <= 0) {
+          timingPosition.current = 0;
+          timingDirection.current = 1;
+        }
+        if (timingCursorRef.current) {
+          timingCursorRef.current.style.left = `${timingPosition.current}%`;
+        }
+        timingAnimFrame.current = requestAnimationFrame(animate);
+      };
+      timingAnimFrame.current = requestAnimationFrame(animate);
+    });
+
+    onDodgePrompt(() => {
+      setDodgeActiveState(true);
+      dodgeActive.current = true;
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const key = letters[Math.floor(Math.random() * letters.length)];
+      dodgeKey.current = key;
+      setDodgeKeyPrompt(key);
+
+      const duration = 500;
+      const startTime = Date.now();
+
+      dodgeInterval.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, 1 - elapsed / duration);
+        if (dodgeTimerFillRef.current) {
+          dodgeTimerFillRef.current.style.width = `${remaining * 100}%`;
+        }
+      }, 15);
+
+      dodgeTimeout.current = setTimeout(() => {
+        if (dodgeActive.current) {
+          dodgeActive.current = false;
+          setDodgeActiveState(false);
+          if (dodgeTimeout.current) clearTimeout(dodgeTimeout.current);
+          if (dodgeInterval.current) clearInterval(dodgeInterval.current);
+          audio.playDodgeFail();
+          sendDodgeResult(false);
+        }
+      }, duration);
+    });
+
+    onPvpBattleEnd((data: PvpBattleEndPayload) => {
+      const side = pvpSideRef.current;
+      const iWon = (side === 'player1' && data.winnerSide === 'player1') ||
+                   (side === 'player2' && data.winnerSide === 'player2');
+
+      if (iWon) {
+        audio.playVictory();
+        setWinner('player');
+      } else {
+        audio.playDefeat();
+        setWinner('opponent');
+      }
+
+      setTurnsCount(data.summary.turns);
+      setDamageDealtCount(side === 'player1' ? data.summary.player1Damage : data.summary.player2Damage);
+      setDamageTakenCount(side === 'player1' ? data.summary.player2Damage : data.summary.player1Damage);
+      setMaxComboCount(0);
+      setPerfectsCount(0);
+      setDodgesCount(0);
+
+      // Record locally too
+      if (playerFighter && opponentFighter) {
+        const winnerId = iWon ? playerFighter.id : opponentFighter.id;
+        const loserId = iWon ? opponentFighter.id : playerFighter.id;
+        recordResult(winnerId, loserId);
+      }
+
+      setTimeout(() => setCurrentScreen("results"), 1500);
+    });
+
+    onOpponentDisconnect(() => {
+      setPvpOpponentDisconnected(true);
+      audio.playVictory();
+      setWinner('player');
+      setTurnsCount(0);
+      setDamageDealtCount(0);
+      setDamageTakenCount(0);
+      setTimeout(() => setCurrentScreen("results"), 1500);
+    });
+
+    onPvpError((data) => {
+      console.error('PVP Error:', data.message);
+    });
+
+    // Actually join the queue
+    joinQueue(pvpFighter);
+  };
+
+  const cancelPvpSearch = () => {
+    leaveQueue();
+    setPvpSearching(false);
+    removeAllPvpListeners();
+  };
+
   // 3. Initiate Battle Screen & Canvas Loops
   const startBattle = async () => {
     if (!playerFighter || !opponentFighter) return;
@@ -427,6 +803,29 @@ export default function Home() {
 
   useEffect(() => {
     if (currentScreen !== "battle" || !canvasRef.current || !playerFighter || !opponentFighter) return;
+    // In PVP mode, skip local CombatEngine setup — state comes from server
+    if (gameMode === 'pvp') {
+      const canvas = canvasRef.current;
+      const arena = new ArenaRenderer(canvas);
+      arenaRef.current = arena;
+
+      Promise.all([
+        getPixels(playerFighter.id, playerFighter.isGhost).catch(() => null),
+        getPixels(opponentFighter.id, opponentFighter.isGhost).catch(() => null)
+      ]).then(async ([playerPixels, opponentPixels]) => {
+        playerOriginalPixelsRef.current = playerPixels;
+        opponentOriginalPixelsRef.current = opponentPixels;
+        
+        arena.setFighters(playerPixels, opponentPixels, playerFighter.isGhost, opponentFighter.isGhost);
+        await arena.loadFighterImages(playerFighter.imageUrl, opponentFighter.imageUrl);
+        arena.start();
+      });
+
+      return () => {
+        arena.destroy();
+        arenaRef.current = null;
+      };
+    }
 
     const canvas = canvasRef.current;
     const arena = new ArenaRenderer(canvas);
@@ -636,7 +1035,10 @@ export default function Home() {
 
     setTimeout(() => {
       setTimingResultVisible(false);
-      if (combatRef.current) {
+      if (gameMode === 'pvp') {
+        // Send timing result to server
+        sendTimingResult(result);
+      } else if (combatRef.current) {
         combatRef.current.resolveTimingAttack(result);
       }
     }, 400);
@@ -693,8 +1095,10 @@ export default function Home() {
     // Apply dodge action
     if (dodged) {
       audio.playDodge();
-      if (arenaRef.current && combatRef.current) {
-        arenaRef.current.dodgeAnimation("player", combatRef.current.playerPixels);
+      if (arenaRef.current) {
+        if (combatRef.current) {
+          arenaRef.current.dodgeAnimation("player", combatRef.current.playerPixels);
+        }
         arenaRef.current.dodgeEffect("player");
       }
     } else {
@@ -702,7 +1106,9 @@ export default function Home() {
     }
 
     setTimeout(() => {
-      if (combatRef.current) {
+      if (gameMode === 'pvp') {
+        sendDodgeResult(dodged);
+      } else if (combatRef.current) {
         combatRef.current.resolveDodge(dodged);
       }
     }, 500);
@@ -748,7 +1154,15 @@ export default function Home() {
     setOpponentFighter(null);
     setPlayerId("");
     setOpponentId("");
-    setCurrentScreen("select");
+    if (gameMode === 'pvp') {
+      removeAllPvpListeners();
+      disconnectFromServer();
+    }
+    setGameMode('pve');
+    setPvpSearching(false);
+    setPvpRoomId(null);
+    setPvpOpponentDisconnected(false);
+    setCurrentScreen("mode-select");
     audio.playSelect();
   };
 
@@ -792,6 +1206,178 @@ export default function Home() {
           </div>
           <div className="loading-text" id="loading-text">
             Connecting to Ethereum...
+          </div>
+        </section>
+      )}
+      {/* Screen 1.5: MODE SELECT SCREEN */}
+      {currentScreen === "mode-select" && (
+        <section className="screen active mode-select-screen">
+          <div className="mode-select-container">
+            <h1 className="mode-select-title">
+              <FontAwesomeIcon icon={faGamepad} style={{ marginRight: "12px" }} />
+              CHOOSE YOUR BATTLEGROUND
+            </h1>
+            <p className="mode-select-subtitle">Select how you want to fight</p>
+
+            <div className="mode-cards">
+              <button
+                className="mode-card pve-card"
+                onClick={() => {
+                  setGameMode('pve');
+                  setCurrentScreen('select');
+                  audio.playSelect();
+                }}
+              >
+                <div className="mode-card-icon">
+                  <FontAwesomeIcon icon={faRobot} />
+                </div>
+                <h2 className="mode-card-title">PVE</h2>
+                <p className="mode-card-desc">Fight AI opponents</p>
+                <div className="mode-card-features">
+                  <span><FontAwesomeIcon icon={faBolt} style={{ marginRight: "4px" }} /> Timing QTE</span>
+                  <span><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "4px" }} /> Dodge System</span>
+                  <span><FontAwesomeIcon icon={faStar} style={{ marginRight: "4px" }} /> Offline Mode</span>
+                </div>
+                <div className="mode-card-badge">SINGLE PLAYER</div>
+              </button>
+
+              <div className="mode-vs-divider">
+                <span>VS</span>
+              </div>
+
+              <button
+                className="mode-card pvp-card"
+                onClick={() => {
+                  setGameMode('pvp');
+                  setCurrentScreen('pvp-lobby');
+                  audio.playSelect();
+                }}
+              >
+                <div className="mode-card-icon">
+                  <FontAwesomeIcon icon={faCrosshairs} />
+                </div>
+                <h2 className="mode-card-title">PVP</h2>
+                <p className="mode-card-desc">Fight real players online</p>
+                <div className="mode-card-features">
+                  <span><FontAwesomeIcon icon={faFire} style={{ marginRight: "4px" }} /> Real-time</span>
+                  <span><FontAwesomeIcon icon={faTrophy} style={{ marginRight: "4px" }} /> ELO Ranked</span>
+                  <span><FontAwesomeIcon icon={faCrown} style={{ marginRight: "4px" }} /> Leaderboard</span>
+                </div>
+                <div className="mode-card-badge online">MULTIPLAYER</div>
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Screen 1.75: PVP LOBBY */}
+      {currentScreen === "pvp-lobby" && (
+        <section className="screen active pvp-lobby-screen">
+          <div className="pvp-lobby-container">
+            <h1 className="pvp-lobby-title">
+              <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "10px" }} />
+              PVP ARENA LOBBY
+            </h1>
+
+            <div className="pvp-lobby-grid">
+              {/* Fighter Selection */}
+              <div className="pvp-lobby-fighter-select">
+                <h2 className="panel-title">
+                  <FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "6px" }} />
+                  SELECT YOUR FIGHTER
+                </h2>
+                <div className="cyber-input-group">
+                  <input
+                    type="number"
+                    placeholder="NORMIE ID (0-9999)"
+                    className="cyber-input"
+                    value={playerId}
+                    onChange={(e) => setPlayerId(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && loadFighter(playerId, "player")}
+                  />
+                  <button
+                    className="cyber-button primary"
+                    onClick={() => loadFighter(playerId, "player")}
+                    disabled={playerLoading}
+                  >
+                    {playerLoading ? "..." : "LOAD"}
+                  </button>
+                  <button
+                    className="cyber-button"
+                    onClick={() => {
+                      const randomId = Math.floor(Math.random() * 10000);
+                      setPlayerId(randomId.toString());
+                      loadFighter(randomId.toString(), "player");
+                    }}
+                    title="Random fighter"
+                  >
+                    <FontAwesomeIcon icon={faDice} />
+                  </button>
+                </div>
+
+                {playerFighter && (
+                  <div className="pvp-fighter-preview">
+                    <div className="fighter-image-container">
+                      <img src={playerFighter.imageUrl} alt={playerFighter.name} />
+                    </div>
+                    <div className="pvp-fighter-info">
+                      <div className="fighter-name">{playerFighter.name}</div>
+                      <div className="fighter-class">{playerFighter.class} • {playerFighter.type} • Lv.{playerFighter.level}</div>
+                      <div className="pvp-stats-mini">
+                        <span><FontAwesomeIcon icon={faHeart} style={{ color: "var(--accent-red)" }} /> {playerFighter.stats.hp}</span>
+                        <span><FontAwesomeIcon icon={faBurst} style={{ color: "var(--accent-gold)" }} /> {playerFighter.stats.atk}</span>
+                        <span><FontAwesomeIcon icon={faShieldHalved} style={{ color: "var(--accent-secondary)" }} /> {playerFighter.stats.def}</span>
+                        <span><FontAwesomeIcon icon={faWind} style={{ color: "var(--accent-primary)" }} /> {playerFighter.stats.spd}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {playerFighter && !pvpSearching && (
+                  <button
+                    className="cyber-button primary pvp-find-match-btn"
+                    onClick={startPvpSearch}
+                  >
+                    <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "8px" }} />
+                    FIND MATCH
+                  </button>
+                )}
+
+                {pvpSearching && (
+                  <div className="pvp-searching">
+                    <div className="pvp-searching-spinner">
+                      <div className="loading-core"></div>
+                    </div>
+                    <p className="pvp-searching-text">Searching for opponent...</p>
+                    <p className="pvp-queue-count">{pvpQueueCount} player{pvpQueueCount !== 1 ? 's' : ''} in queue</p>
+                    <button className="cyber-button" onClick={cancelPvpSearch}>
+                      CANCEL
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* PVP Info / Status */}
+              <div className="pvp-lobby-info">
+                <div className="pvp-info-card">
+                  <h3><FontAwesomeIcon icon={faChartSimple} style={{ marginRight: "6px" }} /> HOW PVP WORKS</h3>
+                  <ul className="pvp-info-list">
+                    <li><FontAwesomeIcon icon={faBolt} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Load your Normie fighter</li>
+                    <li><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px", color: "var(--accent-red)" }} /> Click FIND MATCH to enter the queue</li>
+                    <li><FontAwesomeIcon icon={faGamepad} style={{ marginRight: "6px", color: "var(--accent-primary)" }} /> Get matched with another player in real-time</li>
+                    <li><FontAwesomeIcon icon={faTrophy} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Win to climb the ELO leaderboard!</li>
+                  </ul>
+                </div>
+
+                <button
+                  className="cyber-button"
+                  onClick={() => { setGameMode('pve'); setCurrentScreen('mode-select'); audio.playSelect(); }}
+                  style={{ marginTop: "16px", width: "100%" }}
+                >
+                  <FontAwesomeIcon icon={faGamepad} style={{ marginRight: "6px" }} /> BACK TO MODE SELECT
+                </button>
+              </div>
+            </div>
           </div>
         </section>
       )}
@@ -1397,7 +1983,13 @@ export default function Home() {
                       key={index}
                       className="ability-btn"
                       disabled={!ability.canUse || !isPlayerTurn}
-                      onClick={() => combatRef.current?.playerAction(index)}
+                      onClick={() => {
+                        if (gameMode === 'pvp') {
+                          sendAbility(index);
+                        } else {
+                          combatRef.current?.playerAction(index);
+                        }
+                      }}
                       title={ability.description}
                     >
                       <span className="ability-icon">{getAbilityIcon(ability.id)}</span>
@@ -1412,7 +2004,7 @@ export default function Home() {
             </div>
 
             {/* Opponent Sidebar */}
-            <aside className="battle-sidebar">
+            <aside className="battle-sidebar opponent-sidebar">
               <div className="sidebar-portrait">
                 {opponentFighter && <img src={opponentFighter.imageUrl} alt={opponentFighter.name} />}
               </div>
