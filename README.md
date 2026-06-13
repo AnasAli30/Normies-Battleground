@@ -1,7 +1,6 @@
 # Normies Battleground ⚔️ Skill-Based Combat
 
-Welcome to **Normies Battleground**, a pixel-combat arena built in **Next.js 16 + TypeScript**. In this game, Normies pixel characters battle in real-time, utilizing active timing bars, high-speed dodging QTEs, and direct pixel-destruction canvas animations.
-
+Welcome to **Normies Battleground**, a pixel-combat arena built in **Next.js 16 + Node.js (Socket.io) + TypeScript**. In this game, Normies pixel characters battle in real-time against AI or real players online, utilizing active timing bars, high-speed dodging QTEs, and direct pixel-destruction canvas animations.
 
 ---
 
@@ -11,6 +10,7 @@ Welcome to **Normies Battleground**, a pixel-combat arena built in **Next.js 16 
 Fighters are made of active pixels. A fighter's health (HP) is bound **1:1** to the number of active pixels in their Normies.
 - **Direct Combat Damage**: Taking damage physically blasts pixels off the character's body at the combat impact coordinates. Taking 50 damage removes exactly 50 pixels from the canvas.
 - **Pixel Reconstruction (Healing)**: Healing abilities (such as *Cat Ultimate: Nine Lives* or *Pixel Drain*) dynamically reconstruct and restore previously destroyed pixels back onto the character's body.
+- **Universal Reconciliation Engine**: In PVP, to prevent desync during network latency or complex dodge animations, an authoritative client-side reconciler forces the canvas to mirror the server's exact pixel count after every combat sequence.
 
 ### ⚔️ 2. Offensive Timing Strikes (QTE)
 When you trigger an attack, a timing cursor sweeps across a QTE bar. Hitting **SPACE**, **ENTER**, or **CLICKING** locks the cursor:
@@ -28,6 +28,22 @@ Dodging is a limited skill-based resource, represented as ◆ diamonds in the pl
 
 ### 🔥 4. Combo Multiplier
 Chaining successive Perfect or Critical timing strikes builds your combo multiplier (up to 1.3x damage). Getting hit or scoring a timing miss resets the combo to zero.
+
+---
+
+## 🌐 Real-Time PVP Multiplayer
+
+Take your Normie online and battle real opponents in the **PVP Arena Lobby**!
+
+### Matchmaking Modes
+1. **Find Random Match**: Enters the global matchmaking queue. The server pairs you with another player instantly based on queue status.
+2. **Create Private Room**: Generates a secure, 6-character shortcode (e.g. `X8K2M9`). Share this code with a friend.
+3. **Join Private Room**: Enter a friend's room code to bypass the queue and instantly connect to a 1v1 match.
+
+### Authoritative Server Architecture
+- **State Management**: The Node.js server calculates all damage, dodge frames, and ability cooldowns to prevent client-side cheating or tampering.
+- **Randomness Sync**: Critical hit chances and pixel impact coordinates are seeded by the server so both players see the identical pixel destruction animations at the same time.
+- **ELO Leaderboard**: Winning PVP matches increases your ranking. The global leaderboard is persistently stored via **MongoDB**.
 
 ---
 
@@ -107,12 +123,13 @@ Fighter stats are calculated deterministically based on the character's visual m
 
 Follow this cycle to dominate the combat simulator:
 
-1.  **Select Fighters**: Enter a Normie character ID (0-9999) for Player and Opponent, or click the 🎲 random button. Click **💥 COMMENCE PROTOCOL**.
-2.  **Take Your Turn**: Select one of the three actions on your bottom action bar.
-3.  **Lock the Timing Bar**: A timing cursor will sweep across a QTE bar. Press **SPACE**, **ENTER**, or **CLICK** when it is in the middle white/green zone to trigger a **Critical/Perfect** strike.
-4.  **Accumulate Dodge Charges**: Striking with Perfect or Critical timing awards you **+1 Dodge Charge** (displayed as ◆ diamonds in your sidebar).
-5.  **Defend & Counter-Attack**: On the enemy's turn, if they attack and you have Dodge Charges, press the displayed keyboard key (A-Z) within **0.5 seconds**. Succeeding avoids all damage and fires a laser Counter-Strike.
-6.  **Wreak Havoc**: Win by blasting all opponent pixels off the screen!
+1.  **Select Game Mode**: Choose between single-player **PVE** (against random fighters/AI) or multiplayer **PVP** (against real humans online).
+2.  **Select Fighters**: Enter a Normie character ID (0-9999) to load from the blockchain, or click the 🎲 random button.
+3.  **Take Your Turn**: Select one of the three actions on your bottom action bar.
+4.  **Lock the Timing Bar**: A timing cursor will sweep across a QTE bar. Press **SPACE**, **ENTER**, or **CLICK** when it is in the middle white/green zone to trigger a **Critical/Perfect** strike.
+5.  **Accumulate Dodge Charges**: Striking with Perfect or Critical timing awards you **+1 Dodge Charge** (displayed as ◆ diamonds in your sidebar).
+6.  **Defend & Counter-Attack**: On the enemy's turn, if they attack and you have Dodge Charges, press the displayed keyboard key (A-Z) within **0.5 seconds**. Succeeding avoids all damage and fires a laser Counter-Strike.
+7.  **Wreak Havoc**: Win by blasting all opponent pixels off the screen!
 
 ---
 
@@ -124,56 +141,48 @@ Follow this cycle to dominate the combat simulator:
 
 ---
 
-### Integrated Endpoints by Feature Group:
-
-1. **Wallet-Connected "My Normies" Portfolio**:
-   - `GET /holders/{address}`: Scans owned token IDs for any Ethereum wallet address.
-   - `GET /normie/{id}/owner`: Resolves the current owner of loaded characters.
-2. **Burned Ghost Summons**:
-   - `GET /history/burned-tokens`: Discovers dead/burned Normies.
-   - `GET /normie/{id}/original/pixels`: Decodes SSTORE2 original pre-burn bitmap layers.
-   - `GET /history/burned/{id}/image.svg`: Renders the spectral ghost character.
-3. **ERC-8004 AI Agent Personas**:
-   - `GET /agents/binding/{tokenId}`: Checks ERC-8004 agent adapter binding registry.
-   - `GET /agents/info/{tokenId}`: Queries live AI personas, backstories, greetings, and quirks.
-   - `GET /agents/count`: Real-time active agent registries counter.
-4. **Canvas Evolution History Viewer**:
-   - `GET /history/normie/{id}/versions`: Timeline of past canvas edit commits.
-   - `GET /normie/{id}/canvas/diff`: Decodes pixel additions/deletions on customized characters.
-5. **Ecosystem Dashboard Metrics**:
-   - `GET /history/stats`: Summarizes commitments, AP distributions, and transforms.
-   - `GET /canvas/status`: Queries contract pauses and burn tier escalation logic.
-   - `GET /health`: Real-time health testing of the API gateway.
-6. **AI Agent Registry Gallery**:
-   - `GET /agents/list`: Paginated registry browser of registered agents.
-
----
-
 ## 💻 Tech Stack & Architecture
-- **Framework**: Next.js 16 (App Router, Client-side Canvas loops).
-- **Language**: TypeScript (Strict type checks).
+- **Frontend**: Next.js 16 (App Router, Client-side Canvas loops).
+- **Backend**: Node.js + Express + Socket.io (Authoritative server combat engine).
+- **Database**: MongoDB (ELO Leaderboard, Match History).
+- **Language**: TypeScript (Strict type checks, shared interfaces between client/server).
 - **Styling**: Vanilla CSS (Cyberpunk neon theme, glassmorphism layout panels).
 - **Audio**: Web Audio API (Procedural synthesizer sound effects).
+- **State Sync**: Universal Reconciliation Engine (Ensures 1:1 pixel/HP sync across high-latency connections).
 - **Resilience**: Seed-based deterministic fallback engine. If the remote API is offline, the client procedurally generates unique, symmetrical pixel characters and traits based on the loaded ID.
 
 ---
 
 ## 🚀 Getting Started
 
-### Installation
-Clone the repository and install dependencies:
+### 1. Installation
+Clone the repository and install dependencies for both frontend and backend:
 ```bash
+# Install frontend dependencies
 npm install
+
+# Install backend dependencies
+cd server
+npm install
+cd ..
 ```
 
-### Running Development Server
-Launch the local Next.js dev server:
+### 2. Running Development Servers
+You will need to run both the Next.js frontend and the Node.js PVP server.
+
+Terminal 1 (Backend Server):
+```bash
+cd server
+npm run dev
+```
+
+Terminal 2 (Frontend Next.js):
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in your browser to play.
+Open [http://localhost:3000](http://localhost:3000) in your browser to play!
 
-### Production Build
+### 3. Production Build
 Build and optimize the application:
 ```bash
 npm run build

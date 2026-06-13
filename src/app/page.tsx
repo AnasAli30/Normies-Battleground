@@ -248,6 +248,7 @@ export default function Home() {
   const [perfectsCount, setPerfectsCount] = useState(0);
   const [dodgesCount, setDodgesCount] = useState(0);
   const [damageDealtCount, setDamageDealtCount] = useState(0);
+  const [arenaShake, setArenaShake] = useState(false);
   const [damageTakenCount, setDamageTakenCount] = useState(0);
 
   // QTE overlay states
@@ -628,6 +629,10 @@ export default function Home() {
             }
 
             arenaRef.current!.damageEffect(targetSide, data.lastAction!.damage, data.lastAction!.isCrit, removedCoords);
+            if (data.lastAction!.damage >= 30 || data.lastAction!.isCrit) {
+              setArenaShake(true);
+              setTimeout(() => setArenaShake(false), 300);
+            }
             audio.playPixelCrunch();
             if (data.lastAction!.isCrit) audio.playCrit();
             else audio.playHit();
@@ -903,6 +908,10 @@ export default function Home() {
         },
         onDamage: (target, damage, isCrit, removedCoords) => {
           arena.damageEffect(target, damage, isCrit, removedCoords);
+          if (damage >= 30 || isCrit) {
+            setArenaShake(true);
+            setTimeout(() => setArenaShake(false), 300);
+          }
           audio.playPixelCrunch();
           if (isCrit) audio.playCrit();
           else audio.playHit();
@@ -1952,6 +1961,10 @@ export default function Home() {
                 </div>
                 <div className="sidebar-hp-bar">
                   <div 
+                    className="sidebar-hp-trail player-hp-trail" 
+                    style={{ width: `${playerMaxHp > 0 ? (playerHp / playerMaxHp) * 100 : 0}%` }}
+                  ></div>
+                  <div 
                     className="sidebar-hp-fill player-hp" 
                     style={{ width: `${playerMaxHp > 0 ? (playerHp / playerMaxHp) * 100 : 0}%` }}
                   ></div>
@@ -2068,7 +2081,7 @@ export default function Home() {
             </aside>
 
             {/* Central Canvas Arena */}
-            <div className="arena-central">
+            <div className={`arena-central ${arenaShake ? "arena-shake" : ""}`}>
               <div className="arena-box">
                 <div className="arena-header-indicator">
                   <div className={`turn-indicator ${!isPlayerTurn ? "enemy-turn" : ""}`}>
@@ -2135,7 +2148,7 @@ export default function Home() {
                   {abilities.map((ability, index) => (
                     <button
                       key={index}
-                      className="ability-btn"
+                      className={`ability-btn type-${ability.type}`}
                       disabled={!ability.canUse || !isPlayerTurn}
                       onClick={() => {
                         if (gameMode === 'pvp') {
@@ -2146,11 +2159,13 @@ export default function Home() {
                       }}
                       title={ability.description}
                     >
+                      {ability.currentCooldown !== undefined && ability.currentCooldown > 0 && (
+                        <div className="ability-cooldown-overlay">
+                          <span className="cooldown-number">{ability.currentCooldown}</span>
+                        </div>
+                      )}
                       <span className="ability-icon">{getAbilityIcon(ability.id)}</span>
                       <span>{ability.name}</span>
-                      {ability.currentCooldown !== undefined && ability.currentCooldown > 0 && (
-                        <span className="ability-cooldown">({ability.currentCooldown})</span>
-                      )}
                     </button>
                   ))}
                 </div>
@@ -2169,6 +2184,10 @@ export default function Home() {
                   <span>{opponentHp} / {opponentMaxHp}</span>
                 </div>
                 <div className="sidebar-hp-bar">
+                  <div 
+                    className="sidebar-hp-trail opponent-hp-trail" 
+                    style={{ width: `${opponentMaxHp > 0 ? (opponentHp / opponentMaxHp) * 100 : 0}%` }}
+                  ></div>
                   <div 
                     className="sidebar-hp-fill opponent-hp" 
                     style={{ width: `${opponentMaxHp > 0 ? (opponentHp / opponentMaxHp) * 100 : 0}%` }}
