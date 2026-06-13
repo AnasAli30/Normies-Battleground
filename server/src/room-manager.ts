@@ -24,9 +24,19 @@ interface Room {
   createdAt: number;
 }
 
+interface PrivateLobby {
+  roomCode: string;
+  hostSocketId: string;
+  hostSocket: Socket;
+  hostFighter: PvpFighterData;
+  createdAt: number;
+}
+
 export class RoomManager {
   private rooms: Map<string, Room> = new Map(); // roomId → Room
   private playerRooms: Map<string, string> = new Map(); // socketId → roomId
+  private privateLobbies: Map<string, PrivateLobby> = new Map(); // roomCode → PrivateLobby
+  private playerLobbies: Map<string, string> = new Map(); // socketId → roomCode
 
   /**
    * Create a new PVP room and start the match
@@ -195,7 +205,7 @@ export class RoomManager {
       });
 
       // Also broadcast partial state update (so attacker sees their move happened)
-      io.to(room.roomId).emit(EVENTS.STATE_UPDATE, { ...stateUpdate, lastAction });
+      io.to(room.roomId).emit(EVENTS.STATE_UPDATE, { ...stateUpdate });
 
       // Auto-fail dodge after 2 seconds
       engine.pendingDodgeTimeout = setTimeout(() => {
@@ -222,6 +232,14 @@ export class RoomManager {
    * Handle player disconnect during a match
    */
   public async handleDisconnect(io: Server, socketId: string): Promise<void> {
+    // Clean up private lobby if host disconnects while waiting
+    const lobbyCode = this.playerLobbies.get(socketId);
+    if (lobbyCode) {
+      this.privateLobbies.delete(lobbyCode);
+      this.playerLobbies.delete(socketId);
+      console.log(`🚪 Private lobby ${lobbyCode} closed (host disconnected)`);
+    }
+
     const roomId = this.playerRooms.get(socketId);
     if (!roomId) return;
 
@@ -306,6 +324,94 @@ export class RoomManager {
   public getRoomCount(): number {
     return this.rooms.size;
   }
+
+  // ─── Private Room Lobby ───────────────────────────────────────────
+
+  /**
+   * Create a private lobby and return the room code
+   */
+  public createPrivateLobby(socket: Socket, fighter: PvpFighterData): string {
+    // Clean up any existing lobby for this player
+    const existingCode = this.playerLobbies.get(socket.id);
+    if (existingCode) {
+      this.privateLobbies.delete(existingCode);
+      this.playerLobbies.delete(socket.id);
+    }
+
+    // Also ensure they're not already in a room
+    if (this.getPlayerRoom(socket.id)) {
+      return '';
+    }
+
+    const roomCode = generateRoomCode();
+    const lobby: PrivateLobby = {
+      roomCode,
+      hostSocketId: socket.id,
+      hostSocket: socket,
+      hostFighter: fighter,
+      createdAt: Date.now(),
+    };
+
+    this.privateLobbies.set(roomCode, lobby);
+    this.playerLobbies.set(socket.id, roomCode);
+
+    console.log(`🔑 Private lobby ${roomCode} created by ${fighter.name} (${socket.id})`);
+    return roomCode;
+  }
+
+  /**
+   * Join an existing private lobby by code
+   */
+  public async joinPrivateLobby(
+    io: Server,
+    socket: Socket,
+    fighter: PvpFighterData,
+    roomCode: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const code = roomCode.toUpperCase().trim();
+    const lobby = this.privateLobbies.get(code);
+
+    if (!lobby) {
+      return { success: false, error: 'Room not found. Check the code and try again.' };
+    }
+
+    if (lobby.hostSocketId === socket.id) {
+      return { success: false, error: 'You cannot join your own room.' };
+    }
+
+    if (this.getPlayerRoom(socket.id)) {
+      return { success: false, error: 'You are already in a match.' };
+    }
+
+    // Remove the lobby — it's being consumed
+    this.privateLobbies.delete(code);
+    this.playerLobbies.delete(lobby.hostSocketId);
+
+    // Create the actual match room
+    await this.createRoom(io, lobby.hostSocket, socket, lobby.hostFighter, fighter);
+
+    console.log(`🔑 Player ${fighter.name} joined private lobby ${code}`);
+    return { success: true };
+  }
+
+  /**
+   * Cancel a private lobby
+   */
+  public cancelPrivateLobby(socketId: string): boolean {
+    const code = this.playerLobbies.get(socketId);
+    if (!code) return false;
+    this.privateLobbies.delete(code);
+    this.playerLobbies.delete(socketId);
+    console.log(`🚪 Private lobby ${code} cancelled`);
+    return true;
+  }
+
+  /**
+   * Check if player is in a private lobby
+   */
+  public isPlayerInLobby(socketId: string): boolean {
+    return this.playerLobbies.has(socketId);
+  }
 }
 
 function generateRoomId(): string {
@@ -315,4 +421,13 @@ function generateRoomId(): string {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return `ROOM-${result}`;
+}
+
+function generateRoomCode(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

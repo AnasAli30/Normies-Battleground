@@ -9,6 +9,8 @@ export const EVENTS = {
   JOIN_QUEUE: 'pvp:join_queue',
   LEAVE_QUEUE: 'pvp:leave_queue',
   PLAYER_ACTION: 'pvp:player_action',
+  CREATE_ROOM: 'pvp:create_room',
+  JOIN_ROOM: 'pvp:join_room',
 
   // Server → Client
   QUEUE_JOINED: 'pvp:queue_joined',
@@ -21,6 +23,7 @@ export const EVENTS = {
   OPPONENT_DISCONNECT: 'pvp:opponent_disconnect',
   ERROR: 'pvp:error',
   QUEUE_STATUS: 'pvp:queue_status',
+  ROOM_CREATED: 'pvp:room_created',
 } as const;
 
 // ─── Fighter Data (serializable subset for network) ─────────────────

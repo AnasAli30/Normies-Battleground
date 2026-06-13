@@ -39,6 +39,9 @@ import {
   onError as onPvpError,
   onQueueJoined,
   onQueueStatus,
+  onRoomCreated,
+  createRoom,
+  joinRoom,
   removeAllPvpListeners,
   isConnected,
   fetchPvpLeaderboard,
@@ -78,7 +81,11 @@ import {
   faChartSimple,
   faDiamond,
   faPalette,
-  faScroll
+  faScroll,
+  faKey,
+  faDoorOpen,
+  faLink,
+  faCopy
 } from "@fortawesome/free-solid-svg-icons";
 
 function getBuffedStat(baseValue: number, statName: string, buffs: any[]): { total: number; boost: number } {
@@ -258,6 +265,10 @@ export default function Home() {
   const pvpSideRef = useRef<"player1" | "player2">("player1");
   const [pvpOpponentDisconnected, setPvpOpponentDisconnected] = useState(false);
   const [pvpLeaderboard, setPvpLeaderboard] = useState<any[]>([]);
+  const [pvpLobbyMode, setPvpLobbyMode] = useState<'find' | 'create' | 'join'>('find');
+  const [pvpRoomCode, setPvpRoomCode] = useState<string | null>(null);
+  const [pvpJoinCode, setPvpJoinCode] = useState('');
+  const [pvpWaitingForOpponent, setPvpWaitingForOpponent] = useState(false);
 
   const playerOriginalPixelsRef = useRef<string | null>(null);
   const opponentOriginalPixelsRef = useRef<string | null>(null);
@@ -448,14 +459,11 @@ export default function Home() {
   };
 
   // ── PVP Mode Handlers ─────────────────────────────────────────────
-  const startPvpSearch = () => {
-    if (!playerFighter) return;
-    const socket = connectToServer();
 
-    removeAllPvpListeners();
-
-    // Convert Fighter to PvpFighterData
-    const pvpFighter: PvpFighterData = {
+  // Helper to convert Fighter to PvpFighterData
+  const buildPvpFighterData = (): PvpFighterData | null => {
+    if (!playerFighter) return null;
+    return {
       id: playerFighter.id,
       name: playerFighter.name,
       type: playerFighter.type,
@@ -473,8 +481,12 @@ export default function Home() {
       abilityType: playerFighter.abilityType,
       passive: playerFighter.passive,
     };
+  };
 
-    setPvpSearching(true);
+  // Helper to setup all PVP listeners (shared across find/create/join)
+  const setupPvpListeners = () => {
+    const socket = connectToServer();
+    removeAllPvpListeners();
     setPvpOpponentDisconnected(false);
 
     onQueueJoined(() => {
@@ -485,9 +497,17 @@ export default function Home() {
       setPvpQueueCount(data.playersInQueue);
     });
 
+    onRoomCreated((data) => {
+      setPvpRoomCode(data.roomCode);
+      setPvpWaitingForOpponent(true);
+      console.log('Room created with code:', data.roomCode);
+    });
+
     onMatchFound((data: PvpMatchFoundPayload) => {
       console.log('Match found!', data);
       setPvpSearching(false);
+      setPvpWaitingForOpponent(false);
+      setPvpRoomCode(null);
       setPvpRoomId(data.roomId);
       setPvpSide(data.yourSide);
       pvpSideRef.current = data.yourSide;
@@ -672,13 +692,12 @@ export default function Home() {
       }
 
       if (!willReconcileInCallback) {
-        setTimeout(reconcilePixels, 800); // Wait for dodges/heals
+        setTimeout(reconcilePixels, 800);
       }
     });
 
     onTimingPrompt(() => {
       setTimingActiveState(true);
-      // Start the timing bar sweep (same as PVE)
       timingActive.current = true;
       timingPosition.current = 0;
       timingDirection.current = 1;
@@ -753,7 +772,6 @@ export default function Home() {
       setPerfectsCount(0);
       setDodgesCount(0);
 
-      // Record locally too
       if (playerFighter && opponentFighter) {
         const winnerId = iWon ? playerFighter.id : opponentFighter.id;
         const loserId = iWon ? opponentFighter.id : playerFighter.id;
@@ -777,13 +795,42 @@ export default function Home() {
       console.error('PVP Error:', data.message);
     });
 
-    // Actually join the queue
+    return socket;
+  };
+
+  // Mode 1: Find Match (random queue)
+  const startPvpSearch = () => {
+    const pvpFighter = buildPvpFighterData();
+    if (!pvpFighter) return;
+    setupPvpListeners();
+    setPvpSearching(true);
     joinQueue(pvpFighter);
+  };
+
+  // Mode 2: Create Room (private)
+  const startPvpCreateRoom = () => {
+    const pvpFighter = buildPvpFighterData();
+    if (!pvpFighter) return;
+    setupPvpListeners();
+    setPvpWaitingForOpponent(true);
+    createRoom(pvpFighter);
+  };
+
+  // Mode 3: Join Room (private)
+  const startPvpJoinRoom = () => {
+    const pvpFighter = buildPvpFighterData();
+    if (!pvpFighter || !pvpJoinCode.trim()) return;
+    setupPvpListeners();
+    setPvpSearching(true);
+    joinRoom(pvpFighter, pvpJoinCode.trim());
   };
 
   const cancelPvpSearch = () => {
     leaveQueue();
     setPvpSearching(false);
+    setPvpWaitingForOpponent(false);
+    setPvpRoomCode(null);
+    setPvpJoinCode('');
     removeAllPvpListeners();
   };
 
@@ -1162,6 +1209,10 @@ export default function Home() {
     setPvpSearching(false);
     setPvpRoomId(null);
     setPvpOpponentDisconnected(false);
+    setPvpWaitingForOpponent(false);
+    setPvpRoomCode(null);
+    setPvpJoinCode('');
+    setPvpLobbyMode('find');
     setCurrentScreen("mode-select");
     audio.playSelect();
   };
@@ -1333,16 +1384,83 @@ export default function Home() {
                   </div>
                 )}
 
-                {playerFighter && !pvpSearching && (
+                {playerFighter && !pvpSearching && !pvpWaitingForOpponent && (
+                  <div className="pvp-mode-tabs">
+                    <button
+                      className={`pvp-tab ${pvpLobbyMode === 'find' ? 'active' : ''}`}
+                      onClick={() => { setPvpLobbyMode('find'); audio.playSelect(); }}
+                    >
+                      <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px" }} />
+                      FIND MATCH
+                    </button>
+                    <button
+                      className={`pvp-tab ${pvpLobbyMode === 'create' ? 'active' : ''}`}
+                      onClick={() => { setPvpLobbyMode('create'); audio.playSelect(); }}
+                    >
+                      <FontAwesomeIcon icon={faKey} style={{ marginRight: "6px" }} />
+                      CREATE ROOM
+                    </button>
+                    <button
+                      className={`pvp-tab ${pvpLobbyMode === 'join' ? 'active' : ''}`}
+                      onClick={() => { setPvpLobbyMode('join'); audio.playSelect(); }}
+                    >
+                      <FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "6px" }} />
+                      JOIN ROOM
+                    </button>
+                  </div>
+                )}
+
+                {/* Mode 1: Find Match */}
+                {playerFighter && pvpLobbyMode === 'find' && !pvpSearching && !pvpWaitingForOpponent && (
                   <button
                     className="cyber-button primary pvp-find-match-btn"
                     onClick={startPvpSearch}
                   >
                     <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "8px" }} />
-                    FIND MATCH
+                    FIND RANDOM OPPONENT
                   </button>
                 )}
 
+                {/* Mode 2: Create Room */}
+                {playerFighter && pvpLobbyMode === 'create' && !pvpWaitingForOpponent && !pvpSearching && (
+                  <button
+                    className="cyber-button primary pvp-find-match-btn"
+                    onClick={startPvpCreateRoom}
+                    style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}
+                  >
+                    <FontAwesomeIcon icon={faKey} style={{ marginRight: "8px" }} />
+                    CREATE PRIVATE ROOM
+                  </button>
+                )}
+
+                {/* Mode 3: Join Room */}
+                {playerFighter && pvpLobbyMode === 'join' && !pvpSearching && !pvpWaitingForOpponent && (
+                  <div className="pvp-join-room-section">
+                    <div className="cyber-input-group" style={{ marginBottom: "12px" }}>
+                      <input
+                        type="text"
+                        placeholder="ENTER ROOM CODE"
+                        className="cyber-input"
+                        value={pvpJoinCode}
+                        onChange={(e) => setPvpJoinCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === "Enter" && startPvpJoinRoom()}
+                        maxLength={6}
+                        style={{ textAlign: "center", letterSpacing: "4px", fontSize: "1.2rem", textTransform: "uppercase" }}
+                      />
+                    </div>
+                    <button
+                      className="cyber-button primary pvp-find-match-btn"
+                      onClick={startPvpJoinRoom}
+                      disabled={pvpJoinCode.trim().length < 4}
+                      style={{ background: "linear-gradient(135deg, #059669, #10b981)" }}
+                    >
+                      <FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "8px" }} />
+                      JOIN ROOM
+                    </button>
+                  </div>
+                )}
+
+                {/* Searching spinner (Find Match / Join Room) */}
                 {pvpSearching && (
                   <div className="pvp-searching">
                     <div className="pvp-searching-spinner">
@@ -1355,6 +1473,41 @@ export default function Home() {
                     </button>
                   </div>
                 )}
+
+                {/* Waiting for opponent (Create Room) */}
+                {pvpWaitingForOpponent && (
+                  <div className="pvp-searching">
+                    <div className="pvp-searching-spinner">
+                      <div className="loading-core"></div>
+                    </div>
+                    <p className="pvp-searching-text" style={{ marginBottom: "8px" }}>Waiting for opponent to join...</p>
+                    {pvpRoomCode && (
+                      <div className="pvp-room-code-display">
+                        <span className="pvp-room-code-label">
+                          <FontAwesomeIcon icon={faLink} style={{ marginRight: "6px" }} />
+                          ROOM CODE
+                        </span>
+                        <div className="pvp-room-code-value">
+                          <span>{pvpRoomCode}</span>
+                          <button
+                            className="pvp-copy-btn"
+                            onClick={() => {
+                              navigator.clipboard.writeText(pvpRoomCode);
+                              audio.playSelect();
+                            }}
+                            title="Copy to clipboard"
+                          >
+                            <FontAwesomeIcon icon={faCopy} />
+                          </button>
+                        </div>
+                        <p className="pvp-room-code-hint">Share this code with your friend</p>
+                      </div>
+                    )}
+                    <button className="cyber-button" onClick={cancelPvpSearch} style={{ marginTop: "12px" }}>
+                      CANCEL
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* PVP Info / Status */}
@@ -1363,8 +1516,9 @@ export default function Home() {
                   <h3><FontAwesomeIcon icon={faChartSimple} style={{ marginRight: "6px" }} /> HOW PVP WORKS</h3>
                   <ul className="pvp-info-list">
                     <li><FontAwesomeIcon icon={faBolt} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Load your Normie fighter</li>
-                    <li><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px", color: "var(--accent-red)" }} /> Click FIND MATCH to enter the queue</li>
-                    <li><FontAwesomeIcon icon={faGamepad} style={{ marginRight: "6px", color: "var(--accent-primary)" }} /> Get matched with another player in real-time</li>
+                    <li><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px", color: "var(--accent-red)" }} /> <strong>Find Match</strong> — random opponent from queue</li>
+                    <li><FontAwesomeIcon icon={faKey} style={{ marginRight: "6px", color: "#a855f7" }} /> <strong>Create Room</strong> — get a code, share with a friend</li>
+                    <li><FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "6px", color: "#10b981" }} /> <strong>Join Room</strong> — enter a friend's room code</li>
                     <li><FontAwesomeIcon icon={faTrophy} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Win to climb the ELO leaderboard!</li>
                   </ul>
                 </div>

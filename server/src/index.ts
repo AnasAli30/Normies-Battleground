@@ -66,6 +66,39 @@ async function main() {
       matchmaker.leaveQueue(socket.id);
     });
 
+    // ── Create Private Room ───────────────────────────────────
+    socket.on(EVENTS.CREATE_ROOM, (data: { fighter: PvpFighterData }) => {
+      if (!data.fighter || !data.fighter.id || !data.fighter.stats) {
+        socket.emit(EVENTS.ERROR, { message: 'Invalid fighter data.' });
+        return;
+      }
+      // Leave queue if in it
+      matchmaker.leaveQueue(socket.id);
+      
+      const roomCode = roomManager.createPrivateLobby(socket, data.fighter);
+      if (!roomCode) {
+        socket.emit(EVENTS.ERROR, { message: 'You are already in a match.' });
+        return;
+      }
+      socket.emit(EVENTS.ROOM_CREATED, { roomCode });
+      console.log(`🔑 Room code ${roomCode} sent to ${data.fighter.name}`);
+    });
+
+    // ── Join Private Room ─────────────────────────────────────
+    socket.on(EVENTS.JOIN_ROOM, async (data: { fighter: PvpFighterData; roomCode: string }) => {
+      if (!data.fighter || !data.fighter.id || !data.fighter.stats || !data.roomCode) {
+        socket.emit(EVENTS.ERROR, { message: 'Invalid data.' });
+        return;
+      }
+      // Leave queue if in it
+      matchmaker.leaveQueue(socket.id);
+
+      const result = await roomManager.joinPrivateLobby(io, socket, data.fighter, data.roomCode);
+      if (!result.success) {
+        socket.emit(EVENTS.ERROR, { message: result.error || 'Failed to join room.' });
+      }
+    });
+
     // ── Player Action (ability, timing, dodge) ─────────────────
     socket.on(EVENTS.PLAYER_ACTION, (action: PvpAction) => {
       if (!action || !action.type) {

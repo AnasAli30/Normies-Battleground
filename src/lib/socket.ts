@@ -76,6 +76,20 @@ export function leaveQueue(): void {
   socket?.emit(EVENTS.LEAVE_QUEUE);
 }
 
+export function createRoom(fighter: PvpFighterData): void {
+  if (!socket?.connected) {
+    connectToServer();
+  }
+  socket?.emit(EVENTS.CREATE_ROOM, { fighter });
+}
+
+export function joinRoom(fighter: PvpFighterData, roomCode: string): void {
+  if (!socket?.connected) {
+    connectToServer();
+  }
+  socket?.emit(EVENTS.JOIN_ROOM, { fighter, roomCode });
+}
+
 // ─── Game Actions ───────────────────────────────────────────────────
 
 export function sendAction(action: PvpAction): void {
@@ -110,6 +124,10 @@ export function onQueueStatus(callback: (data: { playersInQueue: number }) => vo
 
 export function onMatchFound(callback: (data: PvpMatchFoundPayload) => void): void {
   socket?.on(EVENTS.MATCH_FOUND, callback);
+}
+
+export function onRoomCreated(callback: (data: { roomCode: string }) => void): void {
+  socket?.on(EVENTS.ROOM_CREATED, callback);
 }
 
 export function onStateUpdate(callback: (data: PvpStateUpdate & { lastAction?: PvpStateUpdate['lastAction'] }) => void): void {

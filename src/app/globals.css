@@ -2241,14 +2241,14 @@ body::before {
 
 .pvp-lobby-screen {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   min-height: calc(100vh - 60px);
   padding: var(--space-xl);
 }
 
 .pvp-lobby-container {
-  max-width: 900px;
+  max-width: 1000px;
   width: 100%;
 }
 
@@ -2263,33 +2263,39 @@ body::before {
 
 .pvp-lobby-grid {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: var(--space-xl);
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--space-2xl);
 }
 
 .pvp-lobby-fighter-select {
-  background: var(--glass-bg);
+  background: linear-gradient(180deg, rgba(16, 20, 24, 0.8) 0%, rgba(10, 12, 16, 0.9) 100%);
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .pvp-fighter-preview {
   display: flex;
-  gap: var(--space-md);
+  gap: var(--space-lg);
   align-items: center;
-  margin-top: var(--space-md);
-  padding: var(--space-md);
-  background: rgba(255, 255, 255, 0.03);
+  margin-top: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
+  background: linear-gradient(90deg, rgba(0, 240, 255, 0.05) 0%, rgba(255, 45, 107, 0.05) 100%);
   border-radius: var(--radius-md);
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 .pvp-fighter-preview .fighter-image-container {
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 8px;
 }
 
 .pvp-fighter-preview .fighter-image-container img {
@@ -2305,9 +2311,10 @@ body::before {
 
 .pvp-fighter-info .fighter-name {
   font-family: var(--font-pixel);
-  font-size: 11px;
+  font-size: 14px;
   color: var(--accent-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
 }
 
 .pvp-fighter-info .fighter-class {
@@ -2322,7 +2329,7 @@ body::before {
   gap: var(--space-sm);
   flex-wrap: wrap;
   font-family: var(--font-pixel);
-  font-size: 8px;
+  font-size: 9px;
   color: var(--text-primary);
 }
 
@@ -2393,18 +2400,41 @@ body::before {
 }
 
 .pvp-info-card {
-  background: var(--glass-bg);
+  background: linear-gradient(135deg, rgba(20, 25, 30, 0.9) 0%, rgba(10, 12, 15, 0.95) 100%);
   border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  backdrop-filter: blur(10px);
+  border-top: 3px solid var(--accent-primary);
+  border-bottom: 3px solid var(--accent-gold);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+}
+
+.pvp-info-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.05)"/></svg>');
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pvp-info-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .pvp-info-card h3 {
   font-family: var(--font-pixel);
-  font-size: 9px;
+  font-size: 11px;
   color: var(--accent-gold);
-  margin-bottom: var(--space-md);
+  margin-bottom: var(--space-lg);
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: var(--space-sm);
 }
 
 .pvp-info-list {
@@ -2418,12 +2448,127 @@ body::before {
 
 .pvp-info-list li {
   font-family: var(--font-ui);
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
   border-radius: var(--radius-sm);
-  border-left: 2px solid var(--accent-gold);
+  border-left: 3px solid var(--accent-gold);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.pvp-info-list li:hover {
+  transform: translateX(5px);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* PVP Mode Tabs */
+.pvp-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: var(--space-md);
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  border: 1px solid var(--glass-border);
+}
+
+.pvp-tab {
+  flex: 1;
+  padding: 10px 8px;
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pvp-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.pvp-tab.active {
+  background: var(--glass-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+/* Room Code Display */
+.pvp-room-code-display {
+  margin-top: var(--space-md);
+  text-align: center;
+}
+
+.pvp-room-code-label {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  display: block;
+  margin-bottom: var(--space-sm);
+}
+
+.pvp-room-code-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(124, 58, 237, 0.15);
+  border: 2px solid #a855f7;
+  border-radius: var(--radius-md);
+  padding: 12px 24px;
+  margin-bottom: var(--space-sm);
+}
+
+.pvp-room-code-value span {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  color: #e9d5ff;
+  letter-spacing: 8px;
+  text-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+}
+
+.pvp-copy-btn {
+  background: rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  color: #c4b5fd;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.pvp-copy-btn:hover {
+  background: rgba(168, 85, 247, 0.4);
+  color: #e9d5ff;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+.pvp-room-code-hint {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: var(--space-xs);
+}
+
+/* Join Room Section */
+.pvp-join-room-section {
+  margin-top: var(--space-md);
+}
+
+@media (max-width: 850px) {
+  .pvp-lobby-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Responsive for mode-select and PVP lobby */
