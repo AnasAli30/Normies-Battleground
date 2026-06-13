@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Fighter, CombatLogEntry, LeaderboardEntry, Ability } from "../lib/types";
-import { 
-  loadFighterData, 
-  getPixels, 
+import {
+  loadFighterData,
+  getPixels,
   getMockFighterData,
   getHolderNormies,
   getBurnedTokens,
@@ -14,9 +14,9 @@ import {
   getGlobalStats,
   getCanvasStatus,
   getAgentsList,
-  getApiHealth
+  getApiHealth,
 } from "../lib/api";
-import { createFighter, getStatPercent } from "../lib/fighter";
+import { createFighter } from "../lib/fighter";
 import { removePixelCluster, restorePixels, getActivePixelCoords, removeRandomPixels, countActivePixels } from "../lib/pixels";
 import { CombatEngine } from "../lib/combat";
 import { ArenaRenderer } from "../lib/arena";
@@ -43,147 +43,27 @@ import {
   createRoom,
   joinRoom,
   removeAllPvpListeners,
-  isConnected,
   fetchPvpLeaderboard,
 } from "../lib/socket";
-import type { PvpFighterData, PvpStateUpdate, PvpMatchFoundPayload, PvpBattleEndPayload } from "../lib/shared-types";
+import type { PvpFighterData, PvpMatchFoundPayload, PvpBattleEndPayload } from "../lib/shared-types";
+import type { GameScreen } from "../lib/game-ui";
 
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faCircleQuestion,
-  faVolumeXmark,
-  faVolumeHigh,
-  faShieldHalved,
-  faStar,
-  faGhost,
-  faBurst,
-  faTrophy,
-  faSkull,
-  faDice,
-  faRobot,
-  faBolt,
-  faWind,
-  faCrosshairs,
-  faHeart,
-  faCrown,
-  faMedal,
-  faFire,
-  faBullhorn,
-  faCat,
-  faRocket,
-  faTornado,
-  faWandMagicSparkles,
-  faBullseye,
-  faMagnet,
-  faTriangleExclamation,
-  faGamepad,
-  faBookOpen,
-  faChartSimple,
-  faDiamond,
-  faPalette,
-  faScroll,
-  faKey,
-  faDoorOpen,
-  faLink,
-  faCopy
-} from "@fortawesome/free-solid-svg-icons";
-
-function getBuffedStat(baseValue: number, statName: string, buffs: any[]): { total: number; boost: number } {
-  let value = baseValue;
-  for (const buff of buffs) {
-    if (buff.stat === statName) {
-      value = Math.floor(value * buff.multiplier);
-    }
-  }
-  return {
-    total: value,
-    boost: value - baseValue
-  };
-}
-
-function getAbilityIcon(abilityId: string) {
-  switch (abilityId) {
-    case 'basicAttack':
-      return <FontAwesomeIcon icon={faBolt} />;
-    case 'humanUlt':
-      return <FontAwesomeIcon icon={faBullhorn} />;
-    case 'catUlt':
-      return <FontAwesomeIcon icon={faCat} />;
-    case 'alienUlt':
-      return <FontAwesomeIcon icon={faRocket} />;
-    case 'agentUlt':
-      return <FontAwesomeIcon icon={faShieldHalved} />;
-    case 'laserBeam':
-      return <FontAwesomeIcon icon={faCrosshairs} style={{ color: "var(--accent-red)" }} />;
-    case 'shieldBash':
-      return <FontAwesomeIcon icon={faShieldHalved} />;
-    case 'psychicWave':
-      return <FontAwesomeIcon icon={faTornado} style={{ color: "var(--accent-secondary)" }} />;
-    case 'shadowStrike':
-      return <FontAwesomeIcon icon={faGhost} />;
-    case 'berserkerRage':
-      return <FontAwesomeIcon icon={faBurst} style={{ color: "var(--accent-red)" }} />;
-    case 'arcaneBlast':
-      return <FontAwesomeIcon icon={faWandMagicSparkles} style={{ color: "var(--accent-gold)" }} />;
-    case 'quickShot':
-      return <FontAwesomeIcon icon={faBullseye} />;
-    case 'pixelDrain':
-      return <FontAwesomeIcon icon={faMagnet} />;
-    default:
-      return null;
-  }
-}
-
-function isPlayerLog(message: string, playerName: string, opponentName: string): boolean {
-  const msg = message.toLowerCase();
-  const pName = playerName.toLowerCase();
-  const oName = opponentName.toLowerCase();
-
-  // Start of fight or SPD strikes first should go to both
-  if (msg.includes("fight!") || msg.includes("strikes first") || msg.includes("perfect timing")) {
-    return true;
-  }
-
-  // Healed HP or boosted stat (without explicit owner) refers to player
-  if (msg.includes("healed") && !msg.includes(oName)) {
-    return true;
-  }
-  if (msg.includes("boosted!") && !msg.includes(oName)) {
-    return true;
-  }
-
-  // Explicit mentions
-  if (msg.includes(pName) || msg.includes("player")) {
-    return true;
-  }
-
-  // If it mentions opponent but also player, we already matched above, but if it ONLY mentions opponent, return false
-  if (msg.includes(oName) || msg.includes("opponent") || msg.includes("enemy")) {
-    return false;
-  }
-
-  return true; // fallback
-}
-
-function isOpponentLog(message: string, playerName: string, opponentName: string): boolean {
-  const msg = message.toLowerCase();
-  const oName = opponentName.toLowerCase();
-
-  // Start of fight or SPD strikes first should go to both
-  if (msg.includes("fight!") || msg.includes("strikes first")) {
-    return true;
-  }
-
-  // Opponent heals, opponent buff, opponent uses ability
-  if (msg.includes(oName) || msg.includes("opponent") || msg.includes("enemy")) {
-    return true;
-  }
-
-  return false;
-}
+import { AppHeader } from "@/components/layout/AppHeader";
+import { ToastContainer } from "@/components/ui/Toast";
+import { useToast } from "@/components/ui/useToast";
+import { LoadingScreen } from "@/components/screens/LoadingScreen";
+import { ModeSelectScreen } from "@/components/screens/ModeSelectScreen";
+import { FighterSelectScreen } from "@/components/screens/FighterSelectScreen";
+import { PvpLobbyScreen } from "@/components/screens/PvpLobbyScreen";
+import { BattleScreen } from "@/components/screens/BattleScreen";
+import { ResultsScreen } from "@/components/screens/ResultsScreen";
+import { LeaderboardScreen } from "@/components/screens/LeaderboardScreen";
+import { HelpModal } from "@/components/modals/HelpModal";
+import { AgentGalleryModal } from "@/components/modals/AgentGalleryModal";
 
 export default function Home() {
-  const [currentScreen, setCurrentScreen] = useState<"loading" | "mode-select" | "select" | "pvp-lobby" | "battle" | "results" | "leaderboard">("loading");
+  const { toasts, error: toastError, dismiss: dismissToast } = useToast();
+  const [currentScreen, setCurrentScreen] = useState<GameScreen>("loading");
   const [gameMode, setGameMode] = useState<"pve" | "pvp">("pve");
   const [isMuted, setIsMuted] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
@@ -297,16 +177,7 @@ export default function Home() {
   const dodgeTimeout = useRef<NodeJS.Timeout | null>(null);
   const dodgeInterval = useRef<NodeJS.Timeout | null>(null);
 
-  // Help modal keyboard escape handler
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setShowHelpModal(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  // Help modal keyboard escape handler â€” HelpModal handles its own escape
 
   // 1. Loading sequence
   useEffect(() => {
@@ -361,7 +232,10 @@ export default function Home() {
   // 2. Fetch Fighter details
   const loadFighter = async (idStr: string, side: "player" | "opponent", isGhost = false) => {
     const id = parseInt(idStr);
-    if (isNaN(id) || id < 0 || id > 9999) return;
+    if (!idStr.trim() || isNaN(id) || id < 0 || id > 9999) {
+      toastError("Enter a valid Normie ID between 0 and 9999.");
+      return;
+    }
 
     if (side === "player") {
       setPlayerLoading(true);
@@ -395,6 +269,7 @@ export default function Home() {
       audio.playSelect();
     } catch (err) {
       console.error(err);
+      toastError(`Could not load Normie #${id}. Check the ID or try again.`);
     } finally {
       if (side === "player") setPlayerLoading(false);
       else setOpponentLoading(false);
@@ -424,16 +299,23 @@ export default function Home() {
   };
 
   const handleWalletSearch = async () => {
-    if (!walletAddress.trim()) return;
+    if (!walletAddress.trim()) {
+      toastError("Enter a wallet address to scan.");
+      return;
+    }
     setWalletLoading(true);
     setWalletSearched(true);
     try {
       const ids = await getHolderNormies(walletAddress.trim());
       setWalletTokens(ids);
       audio.playSelect();
+      if (ids.length === 0) {
+        toastError("No Normies found for this wallet.");
+      }
     } catch (e) {
       console.error(e);
       setWalletTokens([]);
+      toastError("Wallet scan failed. Check the address and try again.");
     } finally {
       setWalletLoading(false);
     }
@@ -459,7 +341,7 @@ export default function Home() {
     await loadFighter(tokenId.toString(), "opponent", false);
   };
 
-  // ── PVP Mode Handlers ─────────────────────────────────────────────
+  // â”€â”€ PVP Mode Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   // Helper to convert Fighter to PvpFighterData
   const buildPvpFighterData = (): PvpFighterData | null => {
@@ -797,7 +679,8 @@ export default function Home() {
     });
 
     onPvpError((data) => {
-      console.error('PVP Error:', data.message);
+      console.error("PVP Error:", data.message);
+      toastError(data.message || "PVP connection error. Please try again.");
     });
 
     return socket;
@@ -806,7 +689,10 @@ export default function Home() {
   // Mode 1: Find Match (random queue)
   const startPvpSearch = () => {
     const pvpFighter = buildPvpFighterData();
-    if (!pvpFighter) return;
+    if (!pvpFighter) {
+      toastError("Load your fighter before searching for a match.");
+      return;
+    }
     setupPvpListeners();
     setPvpSearching(true);
     joinQueue(pvpFighter);
@@ -815,7 +701,10 @@ export default function Home() {
   // Mode 2: Create Room (private)
   const startPvpCreateRoom = () => {
     const pvpFighter = buildPvpFighterData();
-    if (!pvpFighter) return;
+    if (!pvpFighter) {
+      toastError("Load your fighter before creating a room.");
+      return;
+    }
     setupPvpListeners();
     setPvpWaitingForOpponent(true);
     createRoom(pvpFighter);
@@ -824,7 +713,14 @@ export default function Home() {
   // Mode 3: Join Room (private)
   const startPvpJoinRoom = () => {
     const pvpFighter = buildPvpFighterData();
-    if (!pvpFighter || !pvpJoinCode.trim()) return;
+    if (!pvpFighter) {
+      toastError("Load your fighter before joining a room.");
+      return;
+    }
+    if (!pvpJoinCode.trim()) {
+      toastError("Enter a room code to join.");
+      return;
+    }
     setupPvpListeners();
     setPvpSearching(true);
     joinRoom(pvpFighter, pvpJoinCode.trim());
@@ -855,7 +751,7 @@ export default function Home() {
 
   useEffect(() => {
     if (currentScreen !== "battle" || !canvasRef.current || !playerFighter || !opponentFighter) return;
-    // In PVP mode, skip local CombatEngine setup — state comes from server
+    // In PVP mode, skip local CombatEngine setup â€” state comes from server
     if (gameMode === 'pvp') {
       const canvas = canvasRef.current;
       const arena = new ArenaRenderer(canvas);
@@ -1019,8 +915,8 @@ export default function Home() {
       setIsPlayerTurn(engine.isPlayerTurn);
       setTurnIndicator(engine.isPlayerTurn ? "YOUR TURN" : "ENEMY TURN");
 
-      engine.onLog({ message: `⚔️ ${playerFighter.name} vs ${opponentFighter.name} — FIGHT!`, type: "system", turn: 0 });
-      engine.onLog({ message: `🎯 Perfect timing boosts attack strength! Earn Dodge charges!`, type: "system", turn: 0 });
+      engine.onLog({ message: `âš”ï¸ ${playerFighter.name} vs ${opponentFighter.name} â€” FIGHT!`, type: "system", turn: 0 });
+      engine.onLog({ message: `ðŸŽ¯ Perfect timing boosts attack strength! Earn Dodge charges!`, type: "system", turn: 0 });
       engine.onLog({ message: `${engine.isPlayerTurn ? 'Player' : 'Opponent'} strikes first due to higher SPD`, type: "system", turn: 0 });
 
       if (!engine.isPlayerTurn) {
@@ -1226,1665 +1122,218 @@ export default function Home() {
     audio.playSelect();
   };
 
+
+  const handleAbilityClick = (index: number) => {
+    if (gameMode === "pvp") {
+      sendAbility(index);
+    } else {
+      combatRef.current?.playerAction(index);
+    }
+  };
+
+  const openHelp = () => {
+    setShowHelpModal(true);
+    audio.playSelect();
+  };
+
+  const closeHelp = () => {
+    setShowHelpModal(false);
+    audio.playSelect();
+  };
+
   return (
     <div className="app-container">
-      {/* App Header */}
-      <header className="app-header">
-        <div className="logo-container">
-          <div className="logo-grid">
-            <div className="logo-pixel"></div>
-            <div className="logo-pixel"></div>
-            <div className="logo-pixel"></div>
-            <div className="logo-pixel"></div>
-          </div>
-          <span className="logo-text">NORMIES BATTLEGROUND</span>
-        </div>
-        <div className="audio-controls">
-          <button className="btn-audio-mute" onClick={() => { setShowHelpModal(true); audio.playSelect(); }} style={{ marginRight: "8px" }}>
-            <FontAwesomeIcon icon={faCircleQuestion} style={{ marginRight: "4px" }} /> HELP
-          </button>
-          <button className="btn-audio-mute" onClick={toggleMute}>
-            {isMuted ? (
-              <>
-                <FontAwesomeIcon icon={faVolumeXmark} style={{ marginRight: "4px" }} /> UNMUTE
-              </>
-            ) : (
-              <>
-                <FontAwesomeIcon icon={faVolumeHigh} style={{ marginRight: "4px" }} /> MUTE SOUND
-              </>
-            )}
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        isMuted={isMuted}
+        onToggleMute={toggleMute}
+        onOpenHelp={openHelp}
+      />
 
-      {/* Screen 1: LOADING SCREEN */}
-      {currentScreen === "loading" && (
-        <section className="screen active loading-screen">
-          <div className="loading-core"></div>
-          <div className="loading-bar-container">
-            <div className="loading-bar-fill" id="loading-bar"></div>
-          </div>
-          <div className="loading-text" id="loading-text">
-            Connecting to Ethereum...
-          </div>
-        </section>
-      )}
-      {/* Screen 1.5: MODE SELECT SCREEN */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+      {currentScreen === "loading" && <LoadingScreen />}
+
       {currentScreen === "mode-select" && (
-        <section className="screen active mode-select-screen">
-          <div className="mode-select-container">
-            <h1 className="mode-select-title">
-              <FontAwesomeIcon icon={faGamepad} style={{ marginRight: "12px" }} />
-              CHOOSE YOUR BATTLEGROUND
-            </h1>
-            <p className="mode-select-subtitle">Select how you want to fight</p>
-
-            <div className="mode-cards">
-              <button
-                className="mode-card pve-card"
-                onClick={() => {
-                  setGameMode('pve');
-                  setCurrentScreen('select');
-                  audio.playSelect();
-                }}
-              >
-                <div className="mode-card-icon">
-                  <FontAwesomeIcon icon={faRobot} />
-                </div>
-                <h2 className="mode-card-title">PVE</h2>
-                <p className="mode-card-desc">Fight AI opponents</p>
-                <div className="mode-card-features">
-                  <span><FontAwesomeIcon icon={faBolt} style={{ marginRight: "4px" }} /> Timing QTE</span>
-                  <span><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "4px" }} /> Dodge System</span>
-                  <span><FontAwesomeIcon icon={faStar} style={{ marginRight: "4px" }} /> Offline Mode</span>
-                </div>
-                <div className="mode-card-badge">SINGLE PLAYER</div>
-              </button>
-
-              <div className="mode-vs-divider">
-                <span>VS</span>
-              </div>
-
-              <button
-                className="mode-card pvp-card"
-                onClick={() => {
-                  setGameMode('pvp');
-                  setCurrentScreen('pvp-lobby');
-                  audio.playSelect();
-                }}
-              >
-                <div className="mode-card-icon">
-                  <FontAwesomeIcon icon={faCrosshairs} />
-                </div>
-                <h2 className="mode-card-title">PVP</h2>
-                <p className="mode-card-desc">Fight real players online</p>
-                <div className="mode-card-features">
-                  <span><FontAwesomeIcon icon={faFire} style={{ marginRight: "4px" }} /> Real-time</span>
-                  <span><FontAwesomeIcon icon={faTrophy} style={{ marginRight: "4px" }} /> ELO Ranked</span>
-                  <span><FontAwesomeIcon icon={faCrown} style={{ marginRight: "4px" }} /> Leaderboard</span>
-                </div>
-                <div className="mode-card-badge online">MULTIPLAYER</div>
-              </button>
-            </div>
-          </div>
-        </section>
+        <ModeSelectScreen
+          onSelectPve={() => {
+            setGameMode("pve");
+            setCurrentScreen("select");
+            audio.playSelect();
+          }}
+          onSelectPvp={() => {
+            setGameMode("pvp");
+            setCurrentScreen("pvp-lobby");
+            audio.playSelect();
+          }}
+        />
       )}
 
-      {/* Screen 1.75: PVP LOBBY */}
       {currentScreen === "pvp-lobby" && (
-        <section className="screen active pvp-lobby-screen">
-          <div className="pvp-lobby-container">
-            <h1 className="pvp-lobby-title">
-              <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "10px" }} />
-              PVP ARENA LOBBY
-            </h1>
-
-            <div className="pvp-lobby-grid">
-              {/* Fighter Selection */}
-              <div className="pvp-lobby-fighter-select">
-                <h2 className="panel-title">
-                  <FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "6px" }} />
-                  SELECT YOUR FIGHTER
-                </h2>
-                <div className="cyber-input-group">
-                  <input
-                    type="number"
-                    placeholder="NORMIE ID (0-9999)"
-                    className="cyber-input"
-                    value={playerId}
-                    onChange={(e) => setPlayerId(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && loadFighter(playerId, "player")}
-                  />
-                  <button
-                    className="cyber-button primary"
-                    onClick={() => loadFighter(playerId, "player")}
-                    disabled={playerLoading}
-                  >
-                    {playerLoading ? "..." : "LOAD"}
-                  </button>
-                  <button
-                    className="cyber-button"
-                    onClick={() => {
-                      const randomId = Math.floor(Math.random() * 10000);
-                      setPlayerId(randomId.toString());
-                      loadFighter(randomId.toString(), "player");
-                    }}
-                    title="Random fighter"
-                  >
-                    <FontAwesomeIcon icon={faDice} />
-                  </button>
-                </div>
-
-                {playerFighter && (
-                  <div className="pvp-fighter-preview">
-                    <div className="fighter-image-container">
-                      <img src={playerFighter.imageUrl} alt={playerFighter.name} />
-                    </div>
-                    <div className="pvp-fighter-info">
-                      <div className="fighter-name">{playerFighter.name}</div>
-                      <div className="fighter-class">{playerFighter.class} • {playerFighter.type} • Lv.{playerFighter.level}</div>
-                      <div className="pvp-stats-mini">
-                        <span><FontAwesomeIcon icon={faHeart} style={{ color: "var(--accent-red)" }} /> {playerFighter.stats.hp}</span>
-                        <span><FontAwesomeIcon icon={faBurst} style={{ color: "var(--accent-gold)" }} /> {playerFighter.stats.atk}</span>
-                        <span><FontAwesomeIcon icon={faShieldHalved} style={{ color: "var(--accent-secondary)" }} /> {playerFighter.stats.def}</span>
-                        <span><FontAwesomeIcon icon={faWind} style={{ color: "var(--accent-primary)" }} /> {playerFighter.stats.spd}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {playerFighter && !pvpSearching && !pvpWaitingForOpponent && (
-                  <div className="pvp-mode-tabs">
-                    <button
-                      className={`pvp-tab ${pvpLobbyMode === 'find' ? 'active' : ''}`}
-                      onClick={() => { setPvpLobbyMode('find'); audio.playSelect(); }}
-                    >
-                      <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px" }} />
-                      FIND MATCH
-                    </button>
-                    <button
-                      className={`pvp-tab ${pvpLobbyMode === 'create' ? 'active' : ''}`}
-                      onClick={() => { setPvpLobbyMode('create'); audio.playSelect(); }}
-                    >
-                      <FontAwesomeIcon icon={faKey} style={{ marginRight: "6px" }} />
-                      CREATE ROOM
-                    </button>
-                    <button
-                      className={`pvp-tab ${pvpLobbyMode === 'join' ? 'active' : ''}`}
-                      onClick={() => { setPvpLobbyMode('join'); audio.playSelect(); }}
-                    >
-                      <FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "6px" }} />
-                      JOIN ROOM
-                    </button>
-                  </div>
-                )}
-
-                {/* Mode 1: Find Match */}
-                {playerFighter && pvpLobbyMode === 'find' && !pvpSearching && !pvpWaitingForOpponent && (
-                  <button
-                    className="cyber-button primary pvp-find-match-btn"
-                    onClick={startPvpSearch}
-                  >
-                    <FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "8px" }} />
-                    FIND RANDOM OPPONENT
-                  </button>
-                )}
-
-                {/* Mode 2: Create Room */}
-                {playerFighter && pvpLobbyMode === 'create' && !pvpWaitingForOpponent && !pvpSearching && (
-                  <button
-                    className="cyber-button primary pvp-find-match-btn"
-                    onClick={startPvpCreateRoom}
-                    style={{ background: "linear-gradient(135deg, #7c3aed, #a855f7)" }}
-                  >
-                    <FontAwesomeIcon icon={faKey} style={{ marginRight: "8px" }} />
-                    CREATE PRIVATE ROOM
-                  </button>
-                )}
-
-                {/* Mode 3: Join Room */}
-                {playerFighter && pvpLobbyMode === 'join' && !pvpSearching && !pvpWaitingForOpponent && (
-                  <div className="pvp-join-room-section">
-                    <div className="cyber-input-group" style={{ marginBottom: "12px" }}>
-                      <input
-                        type="text"
-                        placeholder="ENTER ROOM CODE"
-                        className="cyber-input"
-                        value={pvpJoinCode}
-                        onChange={(e) => setPvpJoinCode(e.target.value.toUpperCase())}
-                        onKeyDown={(e) => e.key === "Enter" && startPvpJoinRoom()}
-                        maxLength={6}
-                        style={{ textAlign: "center", letterSpacing: "4px", fontSize: "1.2rem", textTransform: "uppercase" }}
-                      />
-                    </div>
-                    <button
-                      className="cyber-button primary pvp-find-match-btn"
-                      onClick={startPvpJoinRoom}
-                      disabled={pvpJoinCode.trim().length < 4}
-                      style={{ background: "linear-gradient(135deg, #059669, #10b981)" }}
-                    >
-                      <FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "8px" }} />
-                      JOIN ROOM
-                    </button>
-                  </div>
-                )}
-
-                {/* Searching spinner (Find Match / Join Room) */}
-                {pvpSearching && (
-                  <div className="pvp-searching">
-                    <div className="pvp-searching-spinner">
-                      <div className="loading-core"></div>
-                    </div>
-                    <p className="pvp-searching-text">Searching for opponent...</p>
-                    <p className="pvp-queue-count">{pvpQueueCount} player{pvpQueueCount !== 1 ? 's' : ''} in queue</p>
-                    <button className="cyber-button" onClick={cancelPvpSearch}>
-                      CANCEL
-                    </button>
-                  </div>
-                )}
-
-                {/* Waiting for opponent (Create Room) */}
-                {pvpWaitingForOpponent && (
-                  <div className="pvp-searching">
-                    <div className="pvp-searching-spinner">
-                      <div className="loading-core"></div>
-                    </div>
-                    <p className="pvp-searching-text" style={{ marginBottom: "8px" }}>Waiting for opponent to join...</p>
-                    {pvpRoomCode && (
-                      <div className="pvp-room-code-display">
-                        <span className="pvp-room-code-label">
-                          <FontAwesomeIcon icon={faLink} style={{ marginRight: "6px" }} />
-                          ROOM CODE
-                        </span>
-                        <div className="pvp-room-code-value">
-                          <span>{pvpRoomCode}</span>
-                          <button
-                            className="pvp-copy-btn"
-                            onClick={() => {
-                              navigator.clipboard.writeText(pvpRoomCode);
-                              audio.playSelect();
-                            }}
-                            title="Copy to clipboard"
-                          >
-                            <FontAwesomeIcon icon={faCopy} />
-                          </button>
-                        </div>
-                        <p className="pvp-room-code-hint">Share this code with your friend</p>
-                      </div>
-                    )}
-                    <button className="cyber-button" onClick={cancelPvpSearch} style={{ marginTop: "12px" }}>
-                      CANCEL
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* PVP Info / Status */}
-              <div className="pvp-lobby-info">
-                <div className="pvp-info-card">
-                  <h3><FontAwesomeIcon icon={faChartSimple} style={{ marginRight: "6px" }} /> HOW PVP WORKS</h3>
-                  <ul className="pvp-info-list">
-                    <li><FontAwesomeIcon icon={faBolt} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Load your Normie fighter</li>
-                    <li><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "6px", color: "var(--accent-red)" }} /> <strong>Find Match</strong> — random opponent from queue</li>
-                    <li><FontAwesomeIcon icon={faKey} style={{ marginRight: "6px", color: "#a855f7" }} /> <strong>Create Room</strong> — get a code, share with a friend</li>
-                    <li><FontAwesomeIcon icon={faDoorOpen} style={{ marginRight: "6px", color: "#10b981" }} /> <strong>Join Room</strong> — enter a friend's room code</li>
-                    <li><FontAwesomeIcon icon={faTrophy} style={{ marginRight: "6px", color: "var(--accent-gold)" }} /> Win to climb the ELO leaderboard!</li>
-                  </ul>
-                </div>
-
-                <button
-                  className="cyber-button"
-                  onClick={() => { setGameMode('pve'); setCurrentScreen('mode-select'); audio.playSelect(); }}
-                  style={{ marginTop: "16px", width: "100%" }}
-                >
-                  <FontAwesomeIcon icon={faGamepad} style={{ marginRight: "6px" }} /> BACK TO MODE SELECT
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <PvpLobbyScreen
+          playerId={playerId}
+          playerFighter={playerFighter}
+          playerLoading={playerLoading}
+          pvpLobbyMode={pvpLobbyMode}
+          pvpSearching={pvpSearching}
+          pvpWaitingForOpponent={pvpWaitingForOpponent}
+          pvpQueueCount={pvpQueueCount}
+          pvpRoomCode={pvpRoomCode}
+          pvpJoinCode={pvpJoinCode}
+          onPlayerIdChange={setPlayerId}
+          onLoadPlayer={() => loadFighter(playerId, "player")}
+          onRandomPlayer={() => {
+            const randomId = Math.floor(Math.random() * 10000);
+            setPlayerId(randomId.toString());
+            loadFighter(randomId.toString(), "player");
+          }}
+          onLobbyModeChange={(mode) => {
+            setPvpLobbyMode(mode);
+            audio.playSelect();
+          }}
+          onFindMatch={startPvpSearch}
+          onCreateRoom={startPvpCreateRoom}
+          onJoinRoom={startPvpJoinRoom}
+          onJoinCodeChange={setPvpJoinCode}
+          onCancelSearch={cancelPvpSearch}
+          onCopyRoomCode={() => {
+            if (pvpRoomCode) {
+              navigator.clipboard.writeText(pvpRoomCode);
+              audio.playSelect();
+            }
+          }}
+          onBack={() => {
+            setGameMode("pve");
+            setCurrentScreen("mode-select");
+            audio.playSelect();
+          }}
+        />
       )}
 
-      {/* Screen 2: SELECT SCREEN */}
       {currentScreen === "select" && (
-        <section className="screen active select-screen">
-          <div className="select-grid">
-            {/* Player Selection */}
-            <div className="select-column">
-              <div className="select-panel player">
-                <h2 className="panel-title"><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "6px" }} /> PLAYER NORMIE</h2>
-                <div className="cyber-input-group">
-                  <input
-                    type="number"
-                    placeholder="ID (0-9999)"
-                    className="cyber-input"
-                    value={playerId}
-                    onChange={(e) => setPlayerId(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && loadFighter(playerId, "player")}
-                  />
-                  <button className="cyber-button primary" onClick={() => loadFighter(playerId, "player")} disabled={playerLoading}>
-                    {playerLoading ? "..." : "LOAD"}
-                  </button>
-                </div>
-
-                {/* Wallet Connected Portfolio */}
-                <div className="wallet-portfolio-search">
-                  <div className="cyber-input-group">
-                    <input
-                      type="text"
-                      placeholder="WALLET ADDRESS"
-                      className="cyber-input"
-                      style={{ fontSize: "9px", padding: "8px 10px" }}
-                      value={walletAddress}
-                      onChange={(e) => setWalletAddress(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleWalletSearch()}
-                    />
-                    <button className="cyber-button tertiary" onClick={handleWalletSearch} disabled={walletLoading} style={{ padding: "8px 12px" }}>
-                      {walletLoading ? "..." : "SCAN"}
-                    </button>
-                  </div>
-                  <div className="wallet-samples">
-                    <span className="sample-label">DEMO:</span>
-                    <button onClick={() => { setWalletAddress("0x9Eb6E2025B64f340691e424b7fe7022fFDE12438"); setTimeout(() => handleWalletSearch(), 50); }} className="sample-btn">MINT OWNER</button>
-                    <button onClick={() => { setWalletAddress("0xC74994dD70FFb621CC514cE18a4F6F52124e296d"); setTimeout(() => handleWalletSearch(), 50); }} className="sample-btn">MINTER</button>
-                  </div>
-                  
-                  {walletSearched && (
-                    <div className="wallet-results">
-                      {walletTokens.length > 0 ? (
-                        <div className="wallet-tokens-row">
-                          {walletTokens.map((tokenId) => (
-                            <button
-                              key={tokenId}
-                              className="wallet-token-badge"
-                              onClick={() => { setPlayerId(tokenId.toString()); loadFighter(tokenId.toString(), "player"); }}
-                            >
-                              #{tokenId}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="wallet-empty">No Normies owned or scan failed.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="preview-container">
-                  {playerFighter ? (
-                    <div className="fighter-card">
-                      <div className="fighter-image-container">
-                        <img src={playerFighter.imageUrl} alt={playerFighter.name} />
-                      </div>
-                      <div className="fighter-name">
-                        {playerFighter.name}
-                        {playerFighter.level > 1 && <span style={{ color: "var(--accent-gold)" }}> <FontAwesomeIcon icon={faStar} style={{ fontSize: "8px", marginRight: "2px" }} /> Lv.{playerFighter.level}</span>}
-                        {playerFighter.customized && <span style={{ color: "var(--accent-tertiary)" }}> ✦ CUSTOM</span>}
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                        <span className={`fighter-type-badge type-${playerFighter.type}`}>{playerFighter.type} — {playerFighter.class}</span>
-                        {playerFighter.isGhost && <span className="fighter-type-badge" style={{ backgroundColor: "rgba(0, 240, 255, 0.15)", border: "1px solid var(--accent-secondary)", color: "var(--accent-secondary)" }}><FontAwesomeIcon icon={faGhost} style={{ marginRight: "4px" }} /> GHOST</span>}
-                      </div>
-
-                      {/* Card Tabs */}
-                      <div className="fighter-card-tabs">
-                        <button className={`card-tab ${playerTab === "stats" ? "active" : ""}`} onClick={() => setPlayerTab("stats")}>STATS</button>
-                        <button className={`card-tab ${playerTab === "evolution" ? "active" : ""}`} onClick={() => setPlayerTab("evolution")}>EVOLUTION</button>
-                        {playerFighter.agentPersona && (
-                          <button className={`card-tab ${playerTab === "agent" ? "active" : ""}`} onClick={() => setPlayerTab("agent")}>AI AGENT</button>
-                        )}
-                      </div>
-
-                      {playerTab === "stats" && (
-                        <>
-                          <div className="stat-bars">
-                            {Object.entries(playerFighter.stats)
-                              .filter(([k]) => k !== "maxHp")
-                              .map(([key, val]) => (
-                                <div className="stat-row" key={key}>
-                                  <span className="stat-label">{key.toUpperCase()}</span>
-                                  <div className="stat-bar-bg">
-                                    <div className={`stat-bar-fill stat-${key}`} style={{ width: `${getStatPercent(key as any, val)}%` }}></div>
-                                  </div>
-                                  <span className="stat-value">{val}</span>
-                                </div>
-                              ))}
-                          </div>
-                          <div className="trait-tags">
-                            {Object.values(playerFighter.traits).map((v, i) => (
-                              <span className="trait-tag" key={i}>{v}</span>
-                            ))}
-                          </div>
-                        </>
-                      )}
-
-                      {playerTab === "evolution" && (
-                        <div className="evolution-details">
-                          <div className="owner-badge">
-                            <span className="label">OWNER:</span>
-                            <span className="val" title={playerFighter.owner}>
-                              {playerFighter.owner ? `${playerFighter.owner.slice(0, 6)}...${playerFighter.owner.slice(-4)}` : "Contract Store"}
-                            </span>
-                          </div>
-                          <div className="canvas-stats-row">
-                            <div className="c-stat"><span>LV</span> <span>{playerFighter.level}</span></div>
-                            <div className="c-stat"><span>AP</span> <span>{playerFighter.actionPoints}</span></div>
-                            <div className="c-stat"><span>CUSTOM</span> <span>{playerFighter.customized ? "YES" : "NO"}</span></div>
-                          </div>
-                          {playerDiff && (
-                            <div className="diff-summary">
-                              <span className="diff-title"><FontAwesomeIcon icon={faPalette} style={{ marginRight: "6px" }} /> Canvas Pixels Diff:</span>
-                              <div className="diff-stats">
-                                <span className="diff-added">+{playerDiff.addedCount || 0} px</span>
-                                <span className="diff-removed">-{playerDiff.removedCount || 0} px</span>
-                                <span className="diff-net">Net: {playerDiff.netChange || 0}</span>
-                              </div>
-                            </div>
-                          )}
-                          <div className="versions-timeline">
-                            <span className="timeline-title"><FontAwesomeIcon icon={faScroll} style={{ marginRight: "6px" }} /> On-Chain Versions ({playerVersions.length}):</span>
-                            {playerVersions.length > 0 ? (
-                              <div className="versions-list">
-                                {playerVersions.map((v: any, index: number) => (
-                                  <div className="version-item" key={index}>
-                                    <span className="v-num">v{v.version}</span>
-                                    <span className="v-changes">+{v.changeCount} px changed</span>
-                                    <span className="v-tx" title={v.transformer}>{v.transformer ? `${v.transformer.slice(0, 6)}...` : ""}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="timeline-empty">No edited canvas versions recorded on-chain.</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {playerTab === "agent" && playerFighter.agentPersona && (
-                        <div className="agent-details">
-                          <div className="agent-tagline">"{playerFighter.agentPersona.tagline}"</div>
-                          <div className="agent-backstory">
-                            <strong>Backstory:</strong> {playerFighter.agentPersona.backstory || "No backstory registered."}
-                          </div>
-                          <div className="agent-quirks">
-                            <strong>Quirks:</strong>
-                            <div className="quirks-list">
-                              {(playerFighter.agentPersona.quirks || []).slice(0, 3).map((q: string, i: number) => (
-                                <span className="quirk-badge" key={i}>{q}</span>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="agent-greeting">
-                            <strong>Greeting:</strong> "{playerFighter.agentPersona.greeting}"
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="preview-placeholder">
-                      <div className="placeholder-pixel-grid"></div>
-                      <p>Awaiting Player Normie...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Middle Matchmaker Console */}
-            <div className="select-column center-select-panel">
-              <h1 className="center-title">NORMIES BATTLEGROUND</h1>
-              <div className="matchmaker-console">
-                <div className="console-header">
-                  <span className="console-prefix">&gt;</span>
-                  <span className="console-title" style={{ fontFamily: "var(--font-pixel)", fontSize: "7px" }}>MATCHMAKER SERVICE</span>
-                  <span className={`api-health-badge ${isApiOnline ? "online" : "offline"}`}>
-                    <span className="health-dot"></span>
-                    API: {isApiOnline ? "ONLINE" : "OFFLINE"}
-                  </span>
-                </div>
-                
-                <div className="stats-dashboard">
-                  <div className="dashboard-grid">
-                    <div className="dash-item">
-                      <span className="dash-label">ON-CHAIN AGENTS</span>
-                      <span className="dash-val">{totalAgents}</span>
-                    </div>
-                    <div className="dash-item">
-                      <span className="dash-label">BURNED TOKENS</span>
-                      <span className="dash-val">{globalStats?.totalBurnedTokens ?? 118}</span>
-                    </div>
-                    <div className="dash-item">
-                      <span className="dash-label">TOTAL TRANSFORMS</span>
-                      <span className="dash-val">{globalStats?.totalTransforms ?? 87}</span>
-                    </div>
-                    <div className="dash-item">
-                      <span className="dash-label">CANVAS STATUS</span>
-                      <span className="dash-val" style={{ color: canvasStatus?.paused ? "var(--accent-red)" : "var(--accent-green)", fontSize: "7px" }}>
-                        {canvasStatus?.paused ? "PAUSED" : "ACTIVE"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="console-log-lines">
-                  <p>&gt; Choose a Player character and load or summon an Opponent.</p>
-                  <p>&gt; Custom on-chain traits scale character stats.</p>
-                  <p>&gt; Precision timing strikes award dodge energy charges.</p>
-                </div>
-              </div>
-              
-              <button 
-                className="btn-commence" 
-                onClick={startBattle} 
-                disabled={!playerFighter || !opponentFighter}
-              >
-                <FontAwesomeIcon icon={faBurst} style={{ marginRight: "6px" }} /> COMMENCE PROTOCOL
-              </button>
-
-              <button className="cyber-button" onClick={openLeaderboard} style={{ width: "180px", marginTop: "10px" }}>
-                <FontAwesomeIcon icon={faTrophy} style={{ marginRight: "6px" }} /> LEADERBOARD
-              </button>
-
-              <button className="cyber-button" onClick={() => { setShowHelpModal(true); audio.playSelect(); }} style={{ width: "180px", marginTop: "10px" }}>
-                <FontAwesomeIcon icon={faCircleQuestion} style={{ marginRight: "6px" }} /> GAME MANUAL
-              </button>
-            </div>
-
-            {/* Opponent Selection */}
-            <div className="select-column">
-              <div className="select-panel opponent">
-                <h2 className="panel-title"><FontAwesomeIcon icon={faSkull} style={{ marginRight: "6px" }} /> OPPONENT</h2>
-                <div className="cyber-input-group">
-                  <input
-                    type="number"
-                    placeholder="ID (0-9999)"
-                    className="cyber-input"
-                    value={opponentId}
-                    onChange={(e) => setOpponentId(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && loadFighter(opponentId, "opponent")}
-                  />
-                  <button className="cyber-button opponent-btn" onClick={() => loadFighter(opponentId, "opponent")} disabled={opponentLoading}>
-                    {opponentLoading ? "..." : "LOAD"}
-                  </button>
-                  <button className="cyber-button" onClick={loadRandomOpponent} disabled={opponentLoading}>
-                    <FontAwesomeIcon icon={faDice} />
-                  </button>
-                </div>
-
-                {/* Ghost & Agent Challenge Actions */}
-                <div className="opponent-actions-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <button className="cyber-button ghost-summon-btn" onClick={summonGhostOpponent} disabled={opponentLoading} style={{ fontSize: "5.5px" }}>
-                    <FontAwesomeIcon icon={faGhost} style={{ marginRight: "4px" }} /> GHOST SUMMON
-                  </button>
-                  <button className="cyber-button agent-gallery-btn" onClick={openAgentGallery} disabled={opponentLoading} style={{ fontSize: "5.5px" }}>
-                    <FontAwesomeIcon icon={faRobot} style={{ marginRight: "4px" }} /> AGENT REGISTRY
-                  </button>
-                </div>
-                
-                <div className="preview-container">
-                  {opponentFighter ? (
-                    <div className="fighter-card">
-                      <div className="fighter-image-container">
-                        <img src={opponentFighter.imageUrl} alt={opponentFighter.name} />
-                      </div>
-                      <div className="fighter-name">
-                        {opponentFighter.name}
-                        {opponentFighter.level > 1 && <span style={{ color: "var(--accent-gold)" }}> <FontAwesomeIcon icon={faStar} style={{ fontSize: "8px", marginRight: "2px" }} /> Lv.{opponentFighter.level}</span>}
-                        {opponentFighter.customized && <span style={{ color: "var(--accent-tertiary)" }}> ✦ CUSTOM</span>}
-                      </div>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                        <span className={`fighter-type-badge type-${opponentFighter.type}`}>{opponentFighter.type} — {opponentFighter.class}</span>
-                        {opponentFighter.isGhost && <span className="fighter-type-badge" style={{ backgroundColor: "rgba(0, 240, 255, 0.15)", border: "1px solid var(--accent-secondary)", color: "var(--accent-secondary)" }}><FontAwesomeIcon icon={faGhost} style={{ marginRight: "4px" }} /> GHOST</span>}
-                      </div>
-
-                      {/* Card Tabs */}
-                      <div className="fighter-card-tabs">
-                        <button className={`card-tab ${opponentTab === "stats" ? "active" : ""}`} onClick={() => setOpponentTab("stats")}>STATS</button>
-                        <button className={`card-tab ${opponentTab === "evolution" ? "active" : ""}`} onClick={() => setOpponentTab("evolution")}>EVOLUTION</button>
-                        {opponentFighter.agentPersona && (
-                          <button className={`card-tab ${opponentTab === "agent" ? "active" : ""}`} onClick={() => setOpponentTab("agent")}>AI AGENT</button>
-                        )}
-                      </div>
-
-                      {opponentTab === "stats" && (
-                        <>
-                          <div className="stat-bars">
-                            {Object.entries(opponentFighter.stats)
-                              .filter(([k]) => k !== "maxHp")
-                              .map(([key, val]) => (
-                                <div className="stat-row" key={key}>
-                                  <span className="stat-label">{key.toUpperCase()}</span>
-                                  <div className="stat-bar-bg">
-                                    <div className={`stat-bar-fill stat-${key}`} style={{ width: `${getStatPercent(key as any, val)}%` }}></div>
-                                  </div>
-                                  <span className="stat-value">{val}</span>
-                                </div>
-                              ))}
-                          </div>
-                          <div className="trait-tags">
-                            {Object.values(opponentFighter.traits).map((v, i) => (
-                              <span className="trait-tag" key={i}>{v}</span>
-                            ))}
-                          </div>
-                        </>
-                      )}
-
-                      {opponentTab === "evolution" && (
-                        <div className="evolution-details">
-                          <div className="owner-badge">
-                            <span className="label">OWNER:</span>
-                            <span className="val" title={opponentFighter.owner}>
-                              {opponentFighter.owner ? `${opponentFighter.owner.slice(0, 6)}...${opponentFighter.owner.slice(-4)}` : "Contract Store"}
-                            </span>
-                          </div>
-                          <div className="canvas-stats-row">
-                            <div className="c-stat"><span>LV</span> <span>{opponentFighter.level}</span></div>
-                            <div className="c-stat"><span>AP</span> <span>{opponentFighter.actionPoints}</span></div>
-                            <div className="c-stat"><span>CUSTOM</span> <span>{opponentFighter.customized ? "YES" : "NO"}</span></div>
-                          </div>
-                          {opponentDiff && (
-                            <div className="diff-summary">
-                              <span className="diff-title"><FontAwesomeIcon icon={faPalette} style={{ marginRight: "6px" }} /> Canvas Pixels Diff:</span>
-                              <div className="diff-stats">
-                                <span className="diff-added">+{opponentDiff.addedCount || 0} px</span>
-                                <span className="diff-removed">-{opponentDiff.removedCount || 0} px</span>
-                                <span className="diff-net">Net: {opponentDiff.netChange || 0}</span>
-                              </div>
-                            </div>
-                          )}
-                          <div className="versions-timeline">
-                            <span className="timeline-title"><FontAwesomeIcon icon={faScroll} style={{ marginRight: "6px" }} /> On-Chain Versions ({opponentVersions.length}):</span>
-                            {opponentVersions.length > 0 ? (
-                              <div className="versions-list">
-                                {opponentVersions.map((v: any, index: number) => (
-                                  <div className="version-item" key={index}>
-                                    <span className="v-num">v{v.version}</span>
-                                    <span className="v-changes">+{v.changeCount} px changed</span>
-                                    <span className="v-tx" title={v.transformer}>{v.transformer ? `${v.transformer.slice(0, 6)}...` : ""}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="timeline-empty">No edited canvas versions recorded on-chain.</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {opponentTab === "agent" && opponentFighter.agentPersona && (
-                        <div className="agent-details">
-                          <div className="agent-tagline">"{opponentFighter.agentPersona.tagline}"</div>
-                          <div className="agent-backstory">
-                            <strong>Backstory:</strong> {opponentFighter.agentPersona.backstory || "No backstory registered."}
-                          </div>
-                          <div className="agent-quirks">
-                            <strong>Quirks:</strong>
-                            <div className="quirks-list">
-                              {(opponentFighter.agentPersona.quirks || []).slice(0, 3).map((q: string, i: number) => (
-                                <span className="quirk-badge" key={i}>{q}</span>
-                              ))}
-                            </div>
-                          </div>
-                          <div className="agent-greeting">
-                            <strong>Greeting:</strong> "{opponentFighter.agentPersona.greeting}"
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="preview-placeholder">
-                      <div className="placeholder-pixel-grid"></div>
-                      <p>Awaiting Opponent...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <FighterSelectScreen
+          playerId={playerId}
+          opponentId={opponentId}
+          playerFighter={playerFighter}
+          opponentFighter={opponentFighter}
+          playerLoading={playerLoading}
+          opponentLoading={opponentLoading}
+          playerTab={playerTab}
+          opponentTab={opponentTab}
+          playerVersions={playerVersions}
+          opponentVersions={opponentVersions}
+          playerDiff={playerDiff}
+          opponentDiff={opponentDiff}
+          walletAddress={walletAddress}
+          walletTokens={walletTokens}
+          walletLoading={walletLoading}
+          walletSearched={walletSearched}
+          isApiOnline={isApiOnline}
+          totalAgents={totalAgents}
+          globalStats={globalStats}
+          canvasStatus={canvasStatus}
+          onBack={() => {
+            setCurrentScreen("mode-select");
+            audio.playSelect();
+          }}
+          onPlayerIdChange={setPlayerId}
+          onOpponentIdChange={setOpponentId}
+          onLoadPlayer={() => loadFighter(playerId, "player")}
+          onLoadOpponent={() => loadFighter(opponentId, "opponent")}
+          onPlayerTabChange={setPlayerTab}
+          onOpponentTabChange={setOpponentTab}
+          onWalletAddressChange={setWalletAddress}
+          onWalletSearch={handleWalletSearch}
+          onWalletTokenSelect={(tokenId) => {
+            setPlayerId(tokenId.toString());
+            loadFighter(tokenId.toString(), "player");
+          }}
+          onRandomOpponent={loadRandomOpponent}
+          onSummonGhost={summonGhostOpponent}
+          onOpenAgentGallery={openAgentGallery}
+          onStartBattle={startBattle}
+          onOpenLeaderboard={openLeaderboard}
+          onOpenHelp={openHelp}
+        />
       )}
 
-      {/* Screen 3: BATTLE SCREEN */}
       {currentScreen === "battle" && (
-        <section className="screen active battle-screen">
-          <div className="battle-layout">
-            {/* Player Sidebar */}
-            <aside className="battle-sidebar">
-              <div className="sidebar-portrait">
-                {playerFighter && <img src={playerFighter.imageUrl} alt={playerFighter.name} />}
-              </div>
-              <div className="sidebar-name">{playerFighter?.name}</div>
-              <div className="sidebar-hp-container">
-                <div className="sidebar-hp-label">
-                  <span>HP</span>
-                  <span>{playerHp} / {playerMaxHp}</span>
-                </div>
-                <div className="sidebar-hp-bar">
-                  <div 
-                    className="sidebar-hp-trail player-hp-trail" 
-                    style={{ width: `${playerMaxHp > 0 ? (playerHp / playerMaxHp) * 100 : 0}%` }}
-                  ></div>
-                  <div 
-                    className="sidebar-hp-fill player-hp" 
-                    style={{ width: `${playerMaxHp > 0 ? (playerHp / playerMaxHp) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-              <div className="sidebar-pixel-count">
-                <span>PIXELS:</span>
-                <div className="pixel-count-bar">
-                  <div 
-                    className="pixel-count-fill" 
-                    style={{ width: `${playerMaxHp > 0 ? (playerPixelsCount / playerMaxHp) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span>{playerPixelsCount}</span>
-              </div>
-              
-              {/* Dodge Charges Indicator */}
-              <div className="sidebar-dodge-charges">
-                <span>DODGE ENERGY:</span>
-                <span style={{ display: "inline-flex", gap: "3px" }}>
-                  {Array.from({ length: maxDodgeCharges }).map((_, idx) => (
-                    <span 
-                      key={idx} 
-                      className={`dodge-diamond ${idx < playerDodgeCharges ? "filled" : "empty"}`}
-                      style={{ fontSize: "8px" }}
-                    >
-                      <FontAwesomeIcon icon={faDiamond} />
-                    </span>
-                  ))}
-                </span>
-              </div>
-
-              {/* Player Sidebar Combat Feed Terminal */}
-              <div className="sidebar-terminal">
-                <div className="terminal-header">
-                  <span className="terminal-dot red"></span>
-                  <span className="terminal-dot yellow"></span>
-                  <span className="terminal-dot green"></span>
-                  <span className="terminal-title">COMBAT FEED</span>
-                </div>
-                <div className="terminal-content" id="player-log-console">
-                  {battleLogs
-                    .filter(log => isPlayerLog(log.message, playerFighter?.name || "Player", opponentFighter?.name || "Opponent"))
-                    .map((log, i) => (
-                      <div className={`log-entry ${log.type}`} key={i}>
-                        {log.message}
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div className="sidebar-stats-mini">
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faBolt} style={{ marginRight: "4px" }} /> ATK:</span>
-                  <span>
-                    {playerFighter ? (() => {
-                      const { total, boost } = getBuffedStat(playerFighter.stats.atk, 'atk', playerBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{playerFighter.stats.atk}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "4px" }} /> DEF:</span>
-                  <span>
-                    {playerFighter ? (() => {
-                      const { total, boost } = getBuffedStat(playerFighter.stats.def, 'def', playerBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{playerFighter.stats.def}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faWind} style={{ marginRight: "4px" }} /> SPD:</span>
-                  <span>
-                    {playerFighter ? (() => {
-                      const { total, boost } = getBuffedStat(playerFighter.stats.spd, 'spd', playerBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{playerFighter.stats.spd}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "4px" }} /> CRT:</span>
-                  <span>
-                    {playerFighter ? (() => {
-                      const { total, boost } = getBuffedStat(playerFighter.stats.crit, 'crit', playerBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{playerFighter.stats.crit}%</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}%</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}%</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-              </div>
-            </aside>
-
-            {/* Central Canvas Arena */}
-            <div className={`arena-central ${arenaShake ? "arena-shake" : ""}`}>
-              <div className="arena-box">
-                <div className="arena-header-indicator">
-                  <div className={`turn-indicator ${!isPlayerTurn ? "enemy-turn" : ""}`}>
-                    {turnIndicator}
-                  </div>
-                </div>
-
-                <canvas ref={canvasRef} className="arena-canvas" />
-
-                {/* Combo Popup */}
-                {combo > 1 && (
-                  <div className="combo-counter">
-                    <div className="combo-count">{combo}×</div>
-                    <div className="combo-label">COMBO</div>
-                  </div>
-                )}
-
-                {/* Float result of QTE */}
-                {timingResultVisible && (
-                  <div className={`timing-result result-${timingResultState}`}>
-                    {timingResultState === "critical" ? "★ CRITICAL ★" : timingResultState.toUpperCase() + "!"}
-                  </div>
-                )}
-
-                {/* TIMING QTE OVERLAY */}
-                {timingActiveState && (
-                  <div className="timing-bar-overlay" ref={timingOverlayRef} onClick={resolveTimingBar}>
-                    <div className="timing-bar-title">LOCK TIMING TO ATTACK</div>
-                    <div className="timing-bar-container">
-                      <div className="timing-zone timing-miss-left"></div>
-                      <div className="timing-zone timing-ok-left"></div>
-                      <div className="timing-zone timing-perfect-left"></div>
-                      <div className="timing-zone timing-perfect"></div>
-                      <div className="timing-zone timing-perfect-right"></div>
-                      <div className="timing-zone timing-ok-right"></div>
-                      <div className="timing-zone timing-miss-right"></div>
-                      <div className="timing-cursor" ref={timingCursorRef}></div>
-                    </div>
-                    <div className="timing-hint">
-                      Press <span className="key-hint">SPACE</span> or <span className="key-hint">CLICK</span> to strike!
-                    </div>
-                  </div>
-                )}
-
-                {/* DODGE QTE OVERLAY */}
-                {dodgeActiveState && (
-                  <div className="dodge-overlay" ref={dodgeOverlayRef}>
-                    <div className="dodge-warning"><FontAwesomeIcon icon={faTriangleExclamation} style={{ marginRight: "8px" }} /> INCOMING PROJECTILE!</div>
-                    <div className="dodge-prompt">
-                      <span>PRESS</span>
-                      <span className="dodge-key">{dodgeKeyPrompt}</span>
-                      <span>TO DODGE!</span>
-                    </div>
-                    <div className="dodge-timer-bar">
-                      <div className="dodge-timer-fill" ref={dodgeTimerFillRef}></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Console logs & Action Bar */}
-              <div className="battle-controls">
-                <div className="ability-bar">
-                  {abilities.map((ability, index) => (
-                    <button
-                      key={index}
-                      className={`ability-btn type-${ability.type}`}
-                      disabled={!ability.canUse || !isPlayerTurn}
-                      onClick={() => {
-                        if (gameMode === 'pvp') {
-                          sendAbility(index);
-                        } else {
-                          combatRef.current?.playerAction(index);
-                        }
-                      }}
-                      title={ability.description}
-                    >
-                      {ability.currentCooldown !== undefined && ability.currentCooldown > 0 && (
-                        <div className="ability-cooldown-overlay">
-                          <span className="cooldown-number">{ability.currentCooldown}</span>
-                        </div>
-                      )}
-                      <span className="ability-icon">{getAbilityIcon(ability.id)}</span>
-                      <span>{ability.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Opponent Sidebar */}
-            <aside className="battle-sidebar opponent-sidebar">
-              <div className="sidebar-portrait">
-                {opponentFighter && <img src={opponentFighter.imageUrl} alt={opponentFighter.name} />}
-              </div>
-              <div className="sidebar-name">{opponentFighter?.name}</div>
-              <div className="sidebar-hp-container">
-                <div className="sidebar-hp-label">
-                  <span>HP</span>
-                  <span>{opponentHp} / {opponentMaxHp}</span>
-                </div>
-                <div className="sidebar-hp-bar">
-                  <div 
-                    className="sidebar-hp-trail opponent-hp-trail" 
-                    style={{ width: `${opponentMaxHp > 0 ? (opponentHp / opponentMaxHp) * 100 : 0}%` }}
-                  ></div>
-                  <div 
-                    className="sidebar-hp-fill opponent-hp" 
-                    style={{ width: `${opponentMaxHp > 0 ? (opponentHp / opponentMaxHp) * 100 : 0}%` }}
-                  ></div>
-                </div>
-              </div>
-              <div className="sidebar-pixel-count">
-                <span>PIXELS:</span>
-                <div className="pixel-count-bar">
-                  <div 
-                    className="pixel-count-fill" 
-                    style={{ width: `${opponentMaxHp > 0 ? (opponentPixelsCount / opponentMaxHp) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span>{opponentPixelsCount}</span>
-              </div>
-
-              {/* Opponent Sidebar Combat Feed Terminal */}
-              <div className="sidebar-terminal">
-                <div className="terminal-header">
-                  <span className="terminal-dot red"></span>
-                  <span className="terminal-dot yellow"></span>
-                  <span className="terminal-dot green"></span>
-                  <span className="terminal-title">COMBAT FEED</span>
-                </div>
-                <div className="terminal-content" id="opponent-log-console">
-                  {battleLogs
-                    .filter(log => isOpponentLog(log.message, playerFighter?.name || "Player", opponentFighter?.name || "Opponent"))
-                    .map((log, i) => (
-                      <div className={`log-entry ${log.type}`} key={i}>
-                        {log.message}
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              <div className="sidebar-stats-mini">
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faBolt} style={{ marginRight: "4px" }} /> ATK:</span>
-                  <span>
-                    {opponentFighter ? (() => {
-                      const { total, boost } = getBuffedStat(opponentFighter.stats.atk, 'atk', opponentBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{opponentFighter.stats.atk}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "4px" }} /> DEF:</span>
-                  <span>
-                    {opponentFighter ? (() => {
-                      const { total, boost } = getBuffedStat(opponentFighter.stats.def, 'def', opponentBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{opponentFighter.stats.def}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faWind} style={{ marginRight: "4px" }} /> SPD:</span>
-                  <span>
-                    {opponentFighter ? (() => {
-                      const { total, boost } = getBuffedStat(opponentFighter.stats.spd, 'spd', opponentBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{opponentFighter.stats.spd}</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-                <div className="mini-stat">
-                  <span><FontAwesomeIcon icon={faCrosshairs} style={{ marginRight: "4px" }} /> CRT:</span>
-                  <span>
-                    {opponentFighter ? (() => {
-                      const { total, boost } = getBuffedStat(opponentFighter.stats.crit, 'crit', opponentBuffs);
-                      return (
-                        <>
-                          <span className="base-stat-val">{opponentFighter.stats.crit}%</span>
-                          {boost > 0 && <span className="stat-boost-val green"> +{boost}%</span>}
-                          {boost < 0 && <span className="stat-boost-val red"> {boost}%</span>}
-                        </>
-                      );
-                    })() : '-'}
-                  </span>
-                </div>
-              </div>
-            </aside>
-          </div>
-        </section>
+        <BattleScreen
+          canvasRef={canvasRef}
+          playerFighter={playerFighter}
+          opponentFighter={opponentFighter}
+          playerHp={playerHp}
+          playerMaxHp={playerMaxHp}
+          opponentHp={opponentHp}
+          opponentMaxHp={opponentMaxHp}
+          playerPixelsCount={playerPixelsCount}
+          opponentPixelsCount={opponentPixelsCount}
+          playerDodgeCharges={playerDodgeCharges}
+          maxDodgeCharges={maxDodgeCharges}
+          combo={combo}
+          turnIndicator={turnIndicator}
+          isPlayerTurn={isPlayerTurn}
+          battleLogs={battleLogs}
+          abilities={abilities}
+          playerBuffs={playerBuffs}
+          opponentBuffs={opponentBuffs}
+          arenaShake={arenaShake}
+          timingActiveState={timingActiveState}
+          timingResultVisible={timingResultVisible}
+          timingResultState={timingResultState}
+          dodgeActiveState={dodgeActiveState}
+          dodgeKeyPrompt={dodgeKeyPrompt}
+          timingOverlayRef={timingOverlayRef}
+          timingCursorRef={timingCursorRef}
+          dodgeTimerFillRef={dodgeTimerFillRef}
+          onResolveTiming={resolveTimingBar}
+          onDodgePress={endDodgeQTE}
+          onAbilityClick={handleAbilityClick}
+        />
       )}
 
-      {/* Screen 4: RESULTS SCREEN */}
       {currentScreen === "results" && (
-        <section className="screen active results-screen">
-          <div className="results-container">
-            <div className="results-banner">
-              <h1 className={`results-banner-title ${winner === "player" ? "victory" : "defeat"}`}>
-                {winner === "player" ? (
-                  <>
-                    <FontAwesomeIcon icon={faBurst} style={{ marginRight: "8px" }} /> PROTOCOL SUCCESS <FontAwesomeIcon icon={faBurst} style={{ marginLeft: "8px" }} />
-                  </>
-                ) : (
-                  <>
-                    <FontAwesomeIcon icon={faSkull} style={{ marginRight: "8px" }} /> CHARACTER TERMINATED <FontAwesomeIcon icon={faSkull} style={{ marginLeft: "8px" }} />
-                  </>
-                )}
-              </h1>
-              <p className="results-banner-sub">
-                {winner === "player" 
-                  ? `${playerFighter?.name} wiped out ${opponentFighter?.name}!` 
-                  : `${opponentFighter?.name} destroyed ${playerFighter?.name}...`}
-              </p>
-            </div>
-
-            <div className="results-stats-grid">
-              <div className="result-stat-card">
-                <div className="result-stat-label">TURNS RESOLVED</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-secondary)" }}>{turnsCount}</div>
-              </div>
-              <div className="result-stat-card">
-                <div className="result-stat-label">MAX COMBO STREAK</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-gold)" }}>
-                  <FontAwesomeIcon icon={faFire} style={{ marginRight: "6px" }} /> {maxComboCount}×
-                </div>
-              </div>
-              <div className="result-stat-card">
-                <div className="result-stat-label">PERFECT TIMINGS</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-green)" }}>
-                  <FontAwesomeIcon icon={faStar} style={{ marginRight: "6px" }} /> {perfectsCount}
-                </div>
-              </div>
-              <div className="result-stat-card">
-                <div className="result-stat-label">DODGES EXECUTED</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-secondary)" }}>
-                  <FontAwesomeIcon icon={faWind} style={{ marginRight: "6px" }} /> {dodgesCount}
-                </div>
-              </div>
-              <div className="result-stat-card">
-                <div className="result-stat-label">DAMAGE INFLICTED</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-primary)" }}>{damageDealtCount}</div>
-              </div>
-              <div className="result-stat-card">
-                <div className="result-stat-label">DAMAGE TAKEN</div>
-                <div className="result-stat-value" style={{ color: "var(--accent-red)" }}>{damageTakenCount}</div>
-              </div>
-            </div>
-
-            {/* Scoreboard rankings */}
-            <div className="leaderboard-panel">
-              <h3 className="panel-title" style={{ marginBottom: "15px" }}>
-                <FontAwesomeIcon icon={faTrophy} style={{ marginRight: "8px" }} /> LOCAL SCOREBOARD
-              </h3>
-              {getLeaderboard().length > 0 ? (
-                <table className="leaderboard-table">
-                  <thead>
-                    <tr>
-                      <th>RANK</th>
-                      <th>NORMIE CHARACTER</th>
-                      <th>WINS</th>
-                      <th>LOSSES</th>
-                      <th>WIN RATIO</th>
-                      <th>STREAK</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getLeaderboard().map((entry, idx) => {
-                      const ratio = entry.wins + entry.losses > 0 ? Math.round((entry.wins / (entry.wins + entry.losses)) * 100) : 0;
-                      return (
-                        <tr key={idx}>
-                          <td>
-                            {idx === 0 ? (
-                              <FontAwesomeIcon icon={faCrown} style={{ color: "var(--accent-gold)" }} />
-                            ) : idx === 1 ? (
-                              <FontAwesomeIcon icon={faMedal} style={{ color: "#c0c0c0" }} />
-                            ) : idx === 2 ? (
-                              <FontAwesomeIcon icon={faMedal} style={{ color: "#cd7f32" }} />
-                            ) : (
-                              `#${idx+1}`
-                            )}
-                          </td>
-                          <td>Normie #{entry.id}</td>
-                          <td className="leaderboard-wins">{entry.wins}</td>
-                          <td className="leaderboard-losses">{entry.losses}</td>
-                          <td>{ratio}%</td>
-                          <td>
-                            {entry.streak > 0 ? (
-                              <>
-                                <FontAwesomeIcon icon={faFire} style={{ color: "var(--accent-gold)", marginRight: "4px" }} /> {entry.streak}
-                              </>
-                            ) : "-"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="leaderboard-empty">No combat rankings recorded.</div>
-              )}
-            </div>
-
-            <div className="results-actions">
-              <button className="cyber-button primary" style={{ padding: "14px 28px" }} onClick={triggerRematch}>
-                💥 INITIATE REMATCH
-              </button>
-              <button className="cyber-button" style={{ padding: "14px 28px" }} onClick={resetGame}>
-                🎮 NEW COMBAT
-              </button>
-            </div>
-          </div>
-        </section>
+        <ResultsScreen
+          winner={winner}
+          playerFighter={playerFighter}
+          opponentFighter={opponentFighter}
+          turnsCount={turnsCount}
+          maxComboCount={maxComboCount}
+          perfectsCount={perfectsCount}
+          dodgesCount={dodgesCount}
+          damageDealtCount={damageDealtCount}
+          damageTakenCount={damageTakenCount}
+          leaderboard={getLeaderboard()}
+          onRematch={triggerRematch}
+          onNewCombat={resetGame}
+        />
       )}
 
-      {/* Screen 5: LEADERBOARD SCREEN */}
       {currentScreen === "leaderboard" && (
-        <section className="screen active leaderboard-screen">
-          <div className="results-container">
-            <h1 className="center-title" style={{ textAlign: "center" }}>
-              <FontAwesomeIcon icon={faTrophy} style={{ marginRight: "10px" }} /> NORMIES CHAMPIONSHIP
-            </h1>
-            
-            <div className="leaderboard-panel">
-              <h3 className="panel-title" style={{ marginBottom: "15px" }}>LEADERBOARD STATS</h3>
-              {leaderboardEntries.length > 0 ? (
-                <table className="leaderboard-table">
-                  <thead>
-                    <tr>
-                      <th>RANK</th>
-                      <th>NORMIE CHARACTER</th>
-                      <th>WINS</th>
-                      <th>LOSSES</th>
-                      <th>WIN RATIO</th>
-                      <th>STREAK</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboardEntries.map((entry, idx) => {
-                      const ratio = entry.wins + entry.losses > 0 ? Math.round((entry.wins / (entry.wins + entry.losses)) * 100) : 0;
-                      return (
-                        <tr key={idx}>
-                          <td>
-                            {idx === 0 ? (
-                              <FontAwesomeIcon icon={faCrown} style={{ color: "var(--accent-gold)" }} />
-                            ) : idx === 1 ? (
-                              <FontAwesomeIcon icon={faMedal} style={{ color: "#c0c0c0" }} />
-                            ) : idx === 2 ? (
-                              <FontAwesomeIcon icon={faMedal} style={{ color: "#cd7f32" }} />
-                            ) : (
-                              `#${idx+1}`
-                            )}
-                          </td>
-                          <td>Normie #{entry.id}</td>
-                          <td className="leaderboard-wins">{entry.wins}</td>
-                          <td className="leaderboard-losses">{entry.losses}</td>
-                          <td>{ratio}%</td>
-                          <td>
-                            {entry.streak > 0 ? (
-                              <>
-                                <FontAwesomeIcon icon={faFire} style={{ color: "var(--accent-gold)", marginRight: "4px" }} /> {entry.streak}
-                              </>
-                            ) : "-"}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="leaderboard-empty">No rankings recorded. Start fighting to record scores!</div>
-              )}
-            </div>
-
-            <div className="results-actions">
-              <button className="cyber-button" onClick={() => setCurrentScreen("select")}>
-                <FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "6px" }} /> RETURN TO COMMAND CONSOLE
-              </button>
-            </div>
-          </div>
-        </section>
+        <LeaderboardScreen
+          entries={leaderboardEntries}
+          onPlayAgain={() => {
+            setCurrentScreen("select");
+            audio.playSelect();
+          }}
+          onModeSelect={() => {
+            setCurrentScreen("mode-select");
+            audio.playSelect();
+          }}
+        />
       )}
 
-      {/* Help / Game Manual Modal */}
-      {showHelpModal && (
-        <div className="help-modal-backdrop" onClick={() => { setShowHelpModal(false); audio.playSelect(); }}>
-          <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="help-modal-header">
-              <h2 className="help-modal-title">
-                <span><FontAwesomeIcon icon={faGamepad} style={{ marginRight: "8px" }} /> NORMIES BATTLEGROUND: CORE SYSTEM MANUAL</span>
-              </h2>
-              <button className="help-modal-close" onClick={() => { setShowHelpModal(false); audio.playSelect(); }}>
-                [ ESC ] CLOSE ×
-              </button>
-            </div>
+      <HelpModal open={showHelpModal} onClose={closeHelp} />
 
-            <div className="help-modal-body">
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faGamepad} style={{ marginRight: "6px" }} /> 1. GAME OVERVIEW</h3>
-                <p className="help-section-p">
-                  Welcome to <span className="help-highlight">Normies Battleground</span>, a high-stakes, skill-based cyberpunk combat simulator. Load standard Web3 characters or customizable fighters to battle. Under the hood, if remote APIs are offline, a seed-based deterministic rendering engine generates fully symmetrical pixel avatars procedurally.
-                </p>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faHeart} style={{ marginRight: "6px" }} /> 2. 1:1 PIXEL-HP SYNCHRONIZATION</h3>
-                <p className="help-section-p">
-                  Fighters are literally made of their visual assets! A character's health points (HP) is bound <span className="help-highlight green">1:1</span> to the number of active canvas pixels.
-                </p>
-                <ul className="help-bullets">
-                  <li className="help-bullet-item">
-                    <span className="help-highlight pink">Damage:</span> When struck, pixels physically blast off the character's body at the exact combat impact coordinates. Taking 40 damage removes exactly 40 pixels.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight green">Healing:</span> Recovering health (e.g. via <span className="help-highlight">Nine Lives</span> or <span className="help-highlight">Pixel Drain</span>) dynamically reconstructs and restores previously destroyed pixels back onto the character model.
-                  </li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faBurst} style={{ marginRight: "6px" }} /> 3. OFFENSIVE STRIKES (TIMING BAR)</h3>
-                <p className="help-section-p">
-                  Triggering any ability initiates a timing cursor sweep. Press <span className="help-key">SPACE</span>, <span className="help-key">ENTER</span>, or <span className="help-highlight">CLICK</span> to lock the cursor:
-                </p>
-                <div className="help-grid">
-                  <div className="help-card">
-                    <div className="help-card-title" style={{ color: '#ffffff', textShadow: '0 0 8px #fff' }}><FontAwesomeIcon icon={faStar} /> CRITICAL (White Center Line)</div>
-                    <div className="help-card-desc">
-                      Deals <span className="help-highlight pink">200% base damage</span> + 20% flat bonus, builds combo multiplier, and rewards <span className="help-highlight green">+1 Dodge Charge</span>.
-                    </div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title" style={{ color: 'var(--accent-green)' }}><FontAwesomeIcon icon={faStar} /> PERFECT (Green Zone)</div>
-                    <div className="help-card-desc">
-                      Deals <span className="help-highlight green">150% base damage</span>, builds combo, and rewards <span className="help-highlight green">+1 Dodge Charge</span>.
-                    </div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title" style={{ color: 'var(--accent-gold)' }}><FontAwesomeIcon icon={faShieldHalved} /> OK (Yellow Zone)</div>
-                    <div className="help-card-desc">
-                      Deals <span className="help-highlight gold">100% standard damage</span>. Does not grant Dodge Charges.
-                    </div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title" style={{ color: 'var(--accent-red)' }}><FontAwesomeIcon icon={faWind} /> MISS (Red Outer Zones)</div>
-                    <div className="help-card-desc">
-                      Deals <span className="help-highlight pink">50% weak damage</span> and resets your active combo counter to zero.
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faShieldHalved} style={{ marginRight: "6px" }} /> 4. DEFENSE & DODGE CHARGE ECONOMY</h3>
-                <p className="help-section-p">
-                  Dodging is high-risk, high-reward, and limited by charges (shown as ◆ diamonds in the player sidebar).
-                </p>
-                <ul className="help-bullets">
-                  <li className="help-bullet-item">
-                    <span className="help-highlight">Dodge Charges:</span> You start with <span className="help-highlight">1 charge</span> (max 3). Charges are gained by landing <span className="help-highlight green">Perfect/Critical</span> attacks.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight pink">0.5s reaction QTE:</span> If you have charges, enemy attacks trigger a rapid <span className="help-highlight pink">500ms</span> QTE. Press the displayed random letter key (<span className="help-key">A</span>-<span className="help-key">Z</span>) before time runs out.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight green">Perfect Dodge:</span> Take <span className="help-highlight green">0 damage</span> and immediately trigger an automatic <span className="help-highlight">Counter-Strike</span> dealing 50% ATK damage to the enemy.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight pink">No Charges:</span> If you have 0 charges, you cannot dodge and will automatically receive full damage.
-                  </li>
-                </ul>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faBolt} style={{ marginRight: "6px" }} /> 5. FIGHTER CLASSES & SPECIAL ABILITIES</h3>
-                <p className="help-section-p">
-                  Each fighter class possesses standard stats and unique ultimate abilities, supplemented by special eye-based modifiers:
-                </p>
-                <div className="help-grid">
-                  <div className="help-card">
-                    <div className="help-card-title">HUMAN — RALLY CRY</div>
-                    <div className="help-card-desc">Boosts ATK stat by 30% for 2 turns (cooldown: 4 turns).</div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title">CAT — NINE LIVES</div>
-                    <div className="help-card-desc">Restores 25% of max HP and reconstructs missing pixels (cooldown: 5 turns).</div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title">ALIEN — COSMIC BLAST</div>
-                    <div className="help-card-desc">Massive beam attack ignoring 50% of the defender's defense stat (cooldown: 4 turns).</div>
-                  </div>
-                  <div className="help-card">
-                    <div className="help-card-title">AGENT — FIREWALL</div>
-                    <div className="help-card-desc">Augments defense (DEF) by 50% for 3 turns (cooldown: 5 turns).</div>
-                  </div>
-                </div>
-                <p className="help-section-p" style={{ marginTop: '8px' }}>
-                  Fighters also inherit eye-based actions like <span className="help-highlight">Laser Beam</span>, <span className="help-highlight">Shield Bash</span>, <span className="help-highlight">Psychic Wave</span>, or <span className="help-highlight">Berserker Rage</span> based on their visual traits.
-                </p>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faChartSimple} style={{ marginRight: "6px" }} /> 6. NORMIE STATS SYSTEM</h3>
-                <p className="help-section-p">
-                  Fighter stats are calculated deterministically from the visual traits of their Web3 metadata:
-                </p>
-
-                <h4 style={{ fontFamily: "var(--font-pixel)", fontSize: "0.55rem", color: "var(--accent-gold)", marginTop: "10px", textShadow: "0 0 5px rgba(251,191,36,0.3)" }}>A. Base Stats Formula</h4>
-                <div className="manual-table-container">
-                  <table className="manual-table">
-                    <thead>
-                      <tr>
-                        <th>STAT</th>
-                        <th>BASE</th>
-                        <th>DESCRIPTION / SCALING SOURCE</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>HP (Health)</strong></td>
-                        <td><code>Pixel Count</code></td>
-                        <td>Bound 1:1 to active pixels count (e.g. 527 px = 527 HP)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>ATK (Attack)</strong></td>
-                        <td><code>25</code></td>
-                        <td>Boosted by Eyewear/Accessories, scaled by Type multiplier</td>
-                      </tr>
-                      <tr>
-                        <td><strong>DEF (Defense)</strong></td>
-                        <td><code>20</code></td>
-                        <td>Boosted by Hair/Accessories/Eyewear, scaled by Type multiplier</td>
-                      </tr>
-                      <tr>
-                        <td><strong>SPD (Speed)</strong></td>
-                        <td><code>15</code></td>
-                        <td>Boosted by Accessories, scaled by Type multiplier</td>
-                      </tr>
-                      <tr>
-                        <td><strong>CRT (Critical)</strong></td>
-                        <td><code>10%</code></td>
-                        <td>Boosted by Expression/Accessories, scaled by Type (capped at 50%)</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <h4 style={{ fontFamily: "var(--font-pixel)", fontSize: "0.55rem", color: "var(--accent-gold)", marginTop: "10px", textShadow: "0 0 5px rgba(251,191,36,0.3)" }}>B. Class Modifiers</h4>
-                <div className="manual-table-container">
-                  <table className="manual-table">
-                    <thead>
-                      <tr>
-                        <th>TYPE</th>
-                        <th>HP</th>
-                        <th>ATK</th>
-                        <th>DEF</th>
-                        <th>SPD</th>
-                        <th>CRIT</th>
-                        <th>CLASS ULTIMATE ABILITY</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Human</strong></td>
-                        <td>1.0x</td>
-                        <td>1.0x</td>
-                        <td>1.0x</td>
-                        <td>1.0x</td>
-                        <td>1.0x</td>
-                        <td><strong>Rally Cry</strong> (+30% ATK for 2 turns)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Cat</strong></td>
-                        <td>0.85x</td>
-                        <td>1.15x</td>
-                        <td>0.9x</td>
-                        <td>1.3x</td>
-                        <td>1.2x</td>
-                        <td><strong>Nine Lives</strong> (Heal 25% HP & restore pixels)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Alien</strong></td>
-                        <td>1.1x</td>
-                        <td>1.2x</td>
-                        <td>0.85x</td>
-                        <td>0.9x</td>
-                        <td>1.1x</td>
-                        <td><strong>Cosmic Blast</strong> (ignores 50% enemy DEF)</td>
-                      </tr>
-                      <tr>
-                        <td><strong>Agent</strong></td>
-                        <td>1.2x</td>
-                        <td>0.9x</td>
-                        <td>1.3x</td>
-                        <td>0.85x</td>
-                        <td>0.9x</td>
-                        <td><strong>Firewall</strong> (+50% DEF for 3 turns)</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <h4 style={{ fontFamily: "var(--font-pixel)", fontSize: "0.55rem", color: "var(--accent-gold)", marginTop: "10px", textShadow: "0 0 5px rgba(251,191,36,0.3)" }}>C. Key Visual Trait Modifiers</h4>
-                <div className="manual-table-container">
-                  <table className="manual-table">
-                    <thead>
-                      <tr>
-                        <th>TRAIT CATEGORY</th>
-                        <th>TRAIT NAME</th>
-                        <th>BONUS</th>
-                        <th>COMBAT EFFECTS / PASSIVES</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td>Eyewear</td>
-                        <td><code>VR Headset</code></td>
-                        <td>+10 ATK</td>
-                        <td>Gains **Laser Eyes** ability (Laser Beam)</td>
-                      </tr>
-                      <tr>
-                        <td>Eyewear</td>
-                        <td><code>Eye Patch</code></td>
-                        <td>+9 ATK, +2 DEF</td>
-                        <td>Gains **Berserker Rage** ability</td>
-                      </tr>
-                      <tr>
-                        <td>Eyewear</td>
-                        <td><code>Big Shades</code></td>
-                        <td>+3 ATK, +8 DEF</td>
-                        <td>Gains **Shield Bash** ability</td>
-                      </tr>
-                      <tr>
-                        <td>Eyewear</td>
-                        <td><code>3D Glasses</code></td>
-                        <td>+7 ATK, +3 DEF</td>
-                        <td>Gains **Psychic Wave** ability</td>
-                      </tr>
-                      <tr>
-                        <td>Eyewear</td>
-                        <td><code>Eye Mask</code></td>
-                        <td>+4 ATK, +7 DEF</td>
-                        <td>Gains **Shadow Strike** ability</td>
-                      </tr>
-                      <tr>
-                        <td>Expression</td>
-                        <td><code>Serious</code></td>
-                        <td>+12% CRIT</td>
-                        <td>Passive: **Focused**</td>
-                      </tr>
-                      <tr>
-                        <td>Expression</td>
-                        <td><code>Confident</code></td>
-                        <td>+8% CRIT</td>
-                        <td>Passive: **Bold** (+3% Dodge Chance)</td>
-                      </tr>
-                      <tr>
-                        <td>Expression</td>
-                        <td><code>Friendly</code></td>
-                        <td>+10% Heal</td>
-                        <td>Passive: **Supportive** (+2% Dodge Chance)</td>
-                      </tr>
-                      <tr>
-                        <td>Accessory</td>
-                        <td><code>Gold Chain</code></td>
-                        <td>+2 HP, +5 ATK</td>
-                        <td>Flat attribute boosts</td>
-                      </tr>
-                      <tr>
-                        <td>Accessory</td>
-                        <td><code>Silver Chain</code></td>
-                        <td>+2 HP, +4 DEF</td>
-                        <td>Flat attribute boosts</td>
-                      </tr>
-                      <tr>
-                        <td>Accessory</td>
-                        <td><code>Headband</code></td>
-                        <td>+2 HP, +5 SPD</td>
-                        <td>Flat attribute boosts</td>
-                      </tr>
-                      <tr>
-                        <td>Hair Style</td>
-                        <td><code>Mohawk</code></td>
-                        <td>+8 DEF</td>
-                        <td>Flat attribute boosts</td>
-                      </tr>
-                      <tr>
-                        <td>Hair Style</td>
-                        <td><code>Spiky Hair</code></td>
-                        <td>+6 DEF</td>
-                        <td>Flat attribute boosts</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <h4 style={{ fontFamily: "var(--font-pixel)", fontSize: "0.55rem", color: "var(--accent-gold)", marginTop: "10px", textShadow: "0 0 5px rgba(251,191,36,0.3)" }}>D. Level & Awakening Boosts</h4>
-                <p className="help-section-p">
-                  • <strong>Level Up:</strong> Each level above 1 grants a flat <strong>+5% boost</strong> to HP, ATK, DEF, and SPD stats.
-                  <br />
-                  • <strong>Awakening:</strong> Customized characters (edited on-chain) receive a special awakened pool of <strong>+15 HP</strong> and <strong>+3 ATK</strong>.
-                </p>
-              </section>
-
-              <section className="help-section">
-                <h3 className="help-section-title"><FontAwesomeIcon icon={faBookOpen} style={{ marginRight: "6px" }} /> 7. NEWBIE GUIDE: HOW TO FIGHT</h3>
-                <p className="help-section-p">
-                  Follow this cycle to dominate the combat simulator:
-                </p>
-                <ol className="help-bullets" style={{ listStyleType: 'decimal' }}>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight">Setup:</span> Enter a Normie ID (0-9999) for Player and Opponent in the Select screen. Click <span className="help-highlight">COMMENCE PROTOCOL</span>.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight green">Your Turn:</span> Select an ability from your action bar. A timing bar will sweep. Press <span className="help-key">SPACE</span> or <span className="help-highlight">CLICK</span> at the center to deal maximum damage.
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight pink">Earn Dodges:</span> Landing a <span className="help-highlight green">Perfect</span> or <span className="help-highlight">Critical</span> hit grants <span className="help-highlight green">+1 Dodge Charge</span>. You will need these to survive!
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight">Enemy Turn:</span> When the enemy strikes back, if you have Dodge Charges, press the random key shown (A-Z) within <span className="help-highlight pink">0.5 seconds</span>. Succeeding blocks all damage and fires an auto-counter laser!
-                  </li>
-                  <li className="help-bullet-item">
-                    <span className="help-highlight gold">Win:</span> Blast all opponent pixels off the screen until their HP/Pixel count falls to zero!
-                  </li>
-                </ol>
-              </section>
-            </div>
-
-            <div className="help-modal-footer">
-              <button className="cyber-button primary" onClick={() => { setShowHelpModal(false); audio.playSelect(); }}>
-                UNDERSTOOD, LOG ONTO COMMAND CONSOLE
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Agent Gallery Modal */}
-      {showAgentGallery && (
-        <div className="help-modal-backdrop" onClick={() => { setShowAgentGallery(false); audio.playSelect(); }}>
-          <div className="help-modal-content agent-gallery-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="help-modal-header">
-              <h2 className="help-modal-title" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                <span><FontAwesomeIcon icon={faRobot} style={{ marginRight: "8px" }} /> ON-CHAIN AGENT REGISTRY</span>
-              </h2>
-              <button className="help-modal-close" onClick={() => { setShowAgentGallery(false); audio.playSelect(); }}>
-                CLOSE ×
-              </button>
-            </div>
-
-            <div className="help-modal-body">
-              <p style={{ fontSize: "11px", marginBottom: "15px", color: "var(--text-secondary)" }}>
-                Browsing all ERC-8004 bound Normie Agents. Pick one to challenge them to a pixel-level combat.
-              </p>
-              
-              {galleryLoading ? (
-                <div className="gallery-loader">
-                  <div className="loading-core"></div>
-                  <p>Querying Ponder indexer registry...</p>
-                </div>
-              ) : (
-                <div className="agents-grid">
-                  {galleryAgents.map((agent: any, idx: number) => (
-                    <div key={idx} className="agent-gallery-card">
-                      <div className="agent-avatar-container">
-                        <img src={`https://api.normies.art/normie/${agent.tokenId}/image.svg`} alt={agent.name} />
-                      </div>
-                      <div className="agent-card-info">
-                        <div className="agent-card-name" style={{ fontFamily: "var(--font-pixel)", fontSize: "6.5px" }}>{agent.name || `Agent #${agent.tokenId}`}</div>
-                        <div className="agent-card-type" style={{ fontSize: "9px" }}>{agent.type} Agent</div>
-                        <div className="agent-card-owner" style={{ fontFamily: "var(--font-pixel)", fontSize: "5px" }}>ID: #{agent.tokenId}</div>
-                      </div>
-                      <button 
-                        className="cyber-button primary select-agent-btn"
-                        onClick={() => selectAgentAsOpponent(parseInt(agent.tokenId))}
-                      >
-                        CHALLENGE
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <AgentGalleryModal
+        open={showAgentGallery}
+        loading={galleryLoading}
+        agents={galleryAgents}
+        onClose={() => {
+          setShowAgentGallery(false);
+          audio.playSelect();
+        }}
+        onSelectAgent={selectAgentAsOpponent}
+      />
     </div>
   );
 }
